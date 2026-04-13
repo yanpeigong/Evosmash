@@ -3,6 +3,7 @@ import numpy as np
 
 from config import COURT_LENGTH, COURT_WIDTH_DOUBLES
 from .referee import AutoReferee
+from .trajectory_features import TrajectoryFeatureExtractor
 
 
 class PhysicsEngine:
@@ -18,6 +19,7 @@ class PhysicsEngine:
         )
         self.homography_matrix = None
         self.referee = AutoReferee()
+        self.feature_extractor = TrajectoryFeatureExtractor()
 
     def update_homography(self, detected_corners):
         self.homography_matrix, _ = cv2.findHomography(detected_corners, self.std_points)
@@ -33,19 +35,21 @@ class PhysicsEngine:
     def analyze_trajectory(self, trajectory_pixels, fps, match_type="singles"):
         world_coords = self.pixel_to_world(trajectory_pixels)
         valid_coords = self._valid_coords(world_coords)
+        trajectory_features = self.feature_extractor.extract(world_coords, valid_coords, fps)
 
-        dt = 1.0 / max(fps, 1)
-        deltas = np.diff(valid_coords, axis=0) if len(valid_coords) > 1 else np.empty((0, 2), dtype=np.float32)
-        velocities = np.sqrt(np.sum(deltas ** 2, axis=1)) / dt if len(deltas) > 0 else np.array([])
+        max_speed_kmh = trajectory_features.get('max_speed_kmh', 0.0)
+        mean_speed_kmh = trajectory_features.get('mean_speed_kmh', 0.0)
+        end_speed_kmh = trajectory_features.get('end_speed_kmh', 0.0)
+        pressure_index = trajectory_features.get('pressure_index', 0.0)
 
-        max_speed_kmh = np.max(velocities) * 3.6 if len(velocities) > 0 else 0
-        mean_speed_kmh = np.mean(velocities) * 3.6 if len(velocities) > 0 else 0
-        end_speed_kmh = np.mean(velocities[-3:]) * 3.6 if len(velocities) >= 3 else mean_speed_kmh
-
-        trajectory_quality = self._estimate_trajectory_quality(world_coords, valid_coords)
-        match_details = self.referee.judge_details(valid_coords, match_type)
+        trajectory_quality = self._estimate_trajectory_quality(trajectory_features)
+        match_details = self.referee.judge_details(
+            valid_coords,
+            match_type,
+            trajectory_features=trajectory_features,
+        )
         match_result = match_details.get('auto_result', 'UNKNOWN')
-        event_name = self._classify_event(max_speed_kmh, mean_speed_kmh)
+        event_name = self._classify_event(trajectory_features)
 
         mode_label = "Singles" if match_type == "singles" else "Doubles"
         description_parts = [f"Mode: {mode_label}.", f"Event: {event_name}."]
@@ -58,7 +62,10 @@ class PhysicsEngine:
         else:
             description_parts.append("Verdict: unresolved call.")
         description_parts.append(
-            f"Referee confidence {match_details.get('referee_confidence', 0.0):.2f}; trajectory quality {trajectory_quality:.2f}."
+            f"Phase {trajectory_features.get('attack_phase', 'neutral')}, tempo {trajectory_features.get('tempo_profile', 'medium')}, shot shape {trajectory_features.get('shot_shape', 'balanced-rally')}."
+        )
+        description_parts.append(
+            f"Referee confidence {match_details.get('referee_confidence', 0.0):.2f}; trajectory quality {trajectory_quality:.2f}; pressure index {pressure_index:.2f}."
         )
 
         rally_state = {
@@ -71,6 +78,10 @@ class PhysicsEngine:
                 'max_speed_kmh': round(max_speed_kmh, 2),
                 'end_speed_kmh': round(end_speed_kmh, 2),
             },
+            'attack_phase': trajectory_features.get('attack_phase', 'neutral'),
+            'tempo_profile': trajectory_features.get('tempo_profile', 'medium'),
+            'shot_shape': trajectory_features.get('shot_shape', 'balanced-rally'),
+            'pressure_index': round(pressure_index, 3),
         }
 
         return {
@@ -89,38 +100,57 @@ class PhysicsEngine:
             "court_context": match_details.get('court_context', 'unknown'),
             "last_hitter": match_details.get('last_hitter', 'UNKNOWN'),
             "landing_point": match_details.get('landing_point'),
+            "attack_phase": trajectory_features.get('attack_phase', 'neutral'),
+            "tempo_profile": trajectory_features.get('tempo_profile', 'medium'),
+            "shot_shape": trajectory_features.get('shot_shape', 'balanced-rally'),
+            "pressure_index": round(pressure_index, 3),
+            "trajectory_features": trajectory_features,
+            "referee_trace": match_details.get('referee_trace', {}),
             "rally_state": rally_state,
         }
 
-    def calculate_reward(self, result_type):
+    def calculate_reward(self, result_type, trajectory_quality=0.5, referee_confidence=0.5, pressure_index=0.5):
         mapping = {"WIN": 10.0, "LOSS": -5.0, "GOOD": 2.0, "BAD": -2.0}
-        return mapping.get(result_type, 0.0)
+        base_reward = mapping.get(result_type, 0.0)
+        certainty_bonus = 0.7 + 0.2 * float(trajectory_quality or 0.5) + 0.1 * float(referee_confidence or 0.5)
+        pressure_scale = 1.0 + 0.08 * float(pressure_index or 0.0)
+        return round(base_reward * certainty_bonus * pressure_scale, 3)
 
     def _valid_coords(self, world_coords):
         return np.array([point for point in world_coords if not (point[0] == 0 and point[1] == 0)], dtype=np.float32)
 
-    def _estimate_trajectory_quality(self, world_coords, valid_coords):
-        if len(world_coords) == 0 or len(valid_coords) == 0:
-            return 0.0
+    def _estimate_trajectory_quality(self, trajectory_features):
+        visibility = float(trajectory_features.get('visibility_ratio', 0.0) or 0.0)
+        directness = float(trajectory_features.get('route_directness', 0.0) or 0.0)
+        sample_count = float(trajectory_features.get('sample_count', 0) or 0)
+        terminal_settle = float(trajectory_features.get('terminal_settle', 0.0) or 0.0)
+        pressure_index = float(trajectory_features.get('pressure_index', 0.0) or 0.0)
+        coverage_factor = min(sample_count / 12.0, 1.0)
+        return float(np.clip(
+            0.36 * visibility + 0.24 * coverage_factor + 0.18 * directness + 0.12 * terminal_settle + 0.1 * min(pressure_index + 0.25, 1.0),
+            0.0,
+            1.0,
+        ))
 
-        visibility_ratio = len(valid_coords) / len(world_coords)
-        length_factor = min(len(valid_coords) / 12.0, 1.0)
-        if len(valid_coords) > 2:
-            deltas = np.diff(valid_coords, axis=0)
-            smoothness = np.mean(np.linalg.norm(deltas, axis=1))
-            stability_factor = float(np.clip(1.0 - min(smoothness / 8.0, 0.4), 0.6, 1.0))
-        else:
-            stability_factor = 0.6
+    def _classify_event(self, trajectory_features):
+        max_speed_kmh = float(trajectory_features.get('max_speed_kmh', 0.0) or 0.0)
+        mean_speed_kmh = float(trajectory_features.get('mean_speed_kmh', 0.0) or 0.0)
+        lateral_span_ratio = float(trajectory_features.get('lateral_span_ratio', 0.0) or 0.0)
+        depth_span_ratio = float(trajectory_features.get('depth_span_ratio', 0.0) or 0.0)
+        pressure_index = float(trajectory_features.get('pressure_index', 0.0) or 0.0)
+        shot_shape = trajectory_features.get('shot_shape', 'balanced-rally')
+        terminal_settle = float(trajectory_features.get('terminal_settle', 0.0) or 0.0)
 
-        return float(np.clip(0.45 * visibility_ratio + 0.3 * length_factor + 0.25 * stability_factor, 0.0, 1.0))
-
-    def _classify_event(self, max_speed_kmh, mean_speed_kmh):
-        if max_speed_kmh >= 180:
+        if max_speed_kmh >= 190 and depth_span_ratio >= 0.4:
             return "Power Smash"
-        if max_speed_kmh >= 135:
-            return "Smash"
-        if mean_speed_kmh >= 80:
+        if max_speed_kmh >= 150 and shot_shape == 'direct-pressure':
+            return "Steep Smash"
+        if mean_speed_kmh >= 95 and lateral_span_ratio < 0.35:
+            return "Fast Flat Exchange"
+        if mean_speed_kmh >= 78:
             return "Drive Exchange"
-        if mean_speed_kmh >= 45:
+        if shot_shape == 'soft-control' and terminal_settle >= 0.48:
+            return "Net Control"
+        if pressure_index >= 0.58:
             return "Pressure Rally"
         return "Control Rally"

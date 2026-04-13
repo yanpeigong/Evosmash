@@ -1,10 +1,18 @@
 ﻿from typing import Dict, List
 
 
-def _confidence_label(score: float, expected_win_rate: float) -> str:
-    if score >= 0.78 or expected_win_rate >= 72:
+RISK_ORDER = {
+    "low": 0,
+    "medium": 1,
+    "high": 2,
+}
+
+
+def _confidence_label(score: float, expected_win_rate: float, context_score: float = 0.5, risk_penalty: float = 0.0) -> str:
+    composite = 0.45 * score + 0.3 * (expected_win_rate / 100.0) + 0.25 * context_score - 0.15 * risk_penalty
+    if composite >= 0.76 or expected_win_rate >= 74:
         return "high"
-    if score <= 0.48 or expected_win_rate <= 45:
+    if composite <= 0.5 or expected_win_rate <= 45:
         return "low"
     return "medium"
 
@@ -16,20 +24,33 @@ def _format_action_from_content(content: str) -> str:
     return sentence if sentence.endswith(".") else f"{sentence}."
 
 
-def _build_why_this_tactic(name: str, event_name: str, speed: float, expected_win_rate: float, confidence_label: str, rank: int) -> str:
+def _build_why_this_tactic(
+    name: str,
+    event_name: str,
+    speed: float,
+    expected_win_rate: float,
+    confidence_label: str,
+    rank: int,
+    attack_phase: str,
+    court_context: str,
+    style_family: str,
+) -> str:
     rank_context = "the clearest match" if rank == 1 else f"a strong supporting option at rank {rank}"
     confidence_context = {
         "high": "with strong historical support",
-        "medium": "with a balanced confidence level",
+        "medium": "with balanced confidence",
         "low": "as an exploratory alternative",
     }.get(confidence_label, "with balanced confidence")
     return (
         f"{name} is {rank_context} for this {event_name} pattern at {speed:.1f} km/h, "
-        f"projecting a {expected_win_rate:.1f}% expected win rate {confidence_context}."
+        f"fitting a {attack_phase} phase in {court_context} through a {style_family} response and projecting "
+        f"a {expected_win_rate:.1f}% expected win rate {confidence_context}."
     )
 
 
-def _build_risk_note(event_name: str, speed: float, confidence_label: str, expected_win_rate: float) -> str:
+def _build_risk_note(event_name: str, speed: float, confidence_label: str, expected_win_rate: float, risk_level: str, attack_phase: str) -> str:
+    if risk_level == "high" and attack_phase == "under_pressure":
+        return "This is a high-commitment option under pressure, so only take it if your base is already stable."
     if confidence_label == "low":
         return "This option is more exploratory, so be ready to recover quickly if the opponent reads it early."
     if speed >= 200:
@@ -39,37 +60,48 @@ def _build_risk_note(event_name: str, speed: float, confidence_label: str, expec
     return "This choice is reliable, but it still depends on early preparation and clean footwork into the shot."
 
 
-
 def enrich_tactics(state: Dict, tactics: List[Dict]) -> List[Dict]:
     enriched = []
-    event_name = state.get("event", "Rally").lower()
+    event_name = state.get("event", "Rally")
     speed = state.get("max_speed_kmh", 0.0)
+    attack_phase = state.get("attack_phase", "neutral")
+    court_context = state.get("court_context", "unknown")
 
     for index, tactic in enumerate(tactics, start=1):
         expected_win_rate = float(tactic.get("expected_win_rate", 50.0))
         score = float(tactic.get("score", 0.0))
+        context_score = float(tactic.get("context_score", 0.5))
+        risk_penalty = float(tactic.get("risk_penalty", 0.0))
+        metadata = tactic.get("metadata", {})
         name = tactic.get("name") or tactic.get("content") or f"Tactic {index}"
         recommended_action = _format_action_from_content(tactic.get("content", name))
-        confidence_label = _confidence_label(score, expected_win_rate)
+        confidence_label = _confidence_label(score, expected_win_rate, context_score, risk_penalty)
+        style_family = metadata.get("style_family", "balanced")
+        risk_level = metadata.get("risk_level", "medium")
 
         rank_hint = "top recommendation" if index == 1 else f"ranked option #{index}"
         reason = (
-            f"{name} is the {rank_hint} because it fits a {event_name} scenario at "
-            f"{speed:.1f} km/h and carries an expected win rate of {expected_win_rate:.1f}%."
+            f"{name} is the {rank_hint} because it fits a {event_name.lower()} scenario at "
+            f"{speed:.1f} km/h with {attack_phase} phase alignment and an expected win rate of {expected_win_rate:.1f}%."
         )
         why_this_tactic = _build_why_this_tactic(
             name=name,
-            event_name=event_name,
+            event_name=event_name.lower(),
             speed=speed,
             expected_win_rate=expected_win_rate,
             confidence_label=confidence_label,
             rank=index,
+            attack_phase=attack_phase.replace("_", " "),
+            court_context=court_context.replace("_", " "),
+            style_family=style_family.replace("-", " "),
         )
         risk_note = _build_risk_note(
             event_name=event_name,
             speed=speed,
             confidence_label=confidence_label,
             expected_win_rate=expected_win_rate,
+            risk_level=risk_level,
+            attack_phase=attack_phase,
         )
 
         enriched.append(
@@ -81,11 +113,12 @@ def enrich_tactics(state: Dict, tactics: List[Dict]) -> List[Dict]:
                 "reason": reason,
                 "why_this_tactic": why_this_tactic,
                 "risk_note": risk_note,
+                "fit_breakdown": tactic.get("fit_breakdown", {}),
+                "selection_profile": tactic.get("selection_profile", {}),
             }
         )
 
     return enriched
-
 
 
 def normalize_advice_payload(raw_advice, tactics: List[Dict], state: Dict) -> Dict:
@@ -102,7 +135,7 @@ def normalize_advice_payload(raw_advice, tactics: List[Dict], state: Dict) -> Di
         text = str(raw_advice or "Stay balanced and prepare early.")
         top_tactic = tactics[0]["name"] if tactics else state.get("event", "Rally")
         headline = f"Lean into {top_tactic}"
-        focus = "Shot selection"
+        focus = state.get("attack_phase", "shot selection").replace("_", " ").title()
         next_step = tactics[0].get("recommended_action", "Prepare for the next shot.") if tactics else "Prepare for the next shot."
         confidence_label = tactics[0].get("confidence_label", "medium") if tactics else "medium"
         source = "fallback"
@@ -117,11 +150,12 @@ def normalize_advice_payload(raw_advice, tactics: List[Dict], state: Dict) -> Di
     }
 
 
-
 def build_summary_payload(state: Dict, advice: Dict, tactics: List[Dict], auto_result: str) -> Dict:
     top_tactic = tactics[0]["name"] if tactics else "Neutral reset"
     confidence_label = advice.get("confidence_label", tactics[0].get("confidence_label", "medium") if tactics else "medium")
     verdict = auto_result or "UNKNOWN"
+    attack_phase = state.get("attack_phase", "neutral").replace("_", " ")
+    shot_shape = state.get("shot_shape", "balanced rally").replace("-", " ")
 
     if verdict == "WIN":
         headline = "Winning pattern detected"
@@ -132,7 +166,7 @@ def build_summary_payload(state: Dict, advice: Dict, tactics: List[Dict], auto_r
 
     key_takeaway = (
         f"Primary tactical direction: {top_tactic}. "
-        f"Focus on {advice.get('focus', 'shot selection').lower()} in the next exchange."
+        f"Current phase reads as {attack_phase} with a {shot_shape} shot pattern, so focus on {advice.get('focus', 'shot selection').lower()} next."
     )
 
     return {
@@ -143,14 +177,15 @@ def build_summary_payload(state: Dict, advice: Dict, tactics: List[Dict], auto_r
     }
 
 
-
 def build_diagnostics_payload(
     warnings: List[str],
     pipeline_status: Dict[str, str],
     motion_feedback: str,
     trajectory_points: int,
     tactics: List[Dict],
+    state: Dict = None,
 ) -> Dict:
+    state = state or {}
     if warnings:
         analysis_quality = "degraded" if len(warnings) > 1 else "limited"
     elif trajectory_points < 8:
@@ -160,14 +195,35 @@ def build_diagnostics_payload(
     else:
         analysis_quality = "medium"
 
+    retrieval_summary = {}
+    if tactics:
+        top = tactics[0]
+        metadata = top.get("metadata", {})
+        retrieval_summary = {
+            "selected_tactic": top.get("name", "Unknown"),
+            "score": round(float(top.get("score", 0.0)), 3),
+            "expected_win_rate": round(float(top.get("expected_win_rate", 50.0)), 2),
+            "style_family": metadata.get("style_family", "balanced"),
+            "phase_preference": metadata.get("phase_preference", "neutral"),
+            "tempo_band": metadata.get("tempo_band", "medium"),
+            "risk_level": metadata.get("risk_level", "medium"),
+            "fit_breakdown": top.get("fit_breakdown", {}),
+        }
+
     return {
         "warnings": warnings,
         "pipeline": pipeline_status,
         "motion_feedback": motion_feedback,
         "trajectory_points": trajectory_points,
         "analysis_quality": analysis_quality,
+        "retrieval_summary": retrieval_summary,
+        "physics_profile": {
+            "attack_phase": state.get("attack_phase", "neutral"),
+            "tempo_profile": state.get("tempo_profile", "medium"),
+            "shot_shape": state.get("shot_shape", "balanced-rally"),
+            "pressure_index": state.get("pressure_index", 0.0),
+        },
     }
-
 
 
 def make_empty_rally_response(match_type: str, warning: str) -> Dict:
@@ -197,6 +253,13 @@ def make_empty_rally_response(match_type: str, warning: str) -> Dict:
         "motion_feedback": "Unavailable",
         "trajectory_points": 0,
         "analysis_quality": "degraded",
+        "retrieval_summary": {},
+        "physics_profile": {
+            "attack_phase": "neutral",
+            "tempo_profile": "medium",
+            "shot_shape": "balanced-rally",
+            "pressure_index": 0.0,
+        },
     }
     return {
         "physics": {

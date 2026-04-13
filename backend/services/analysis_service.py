@@ -69,8 +69,14 @@ class AnalysisService:
         reward = 0.0
         if tactic_id and auto_result != "UNKNOWN":
             try:
-                reward = self.physics.calculate_reward(auto_result)
+                reward = self.physics.calculate_reward(
+                    auto_result,
+                    trajectory_quality=state.get("trajectory_quality", 0.5),
+                    referee_confidence=state.get("referee_confidence", 0.5),
+                    pressure_index=state.get("pressure_index", 0.5),
+                )
                 retrieval_confidence = self._retrieval_confidence(tactics)
+                top_tactic = tactics[0] if tactics else {}
                 policy_update = self.rag.update_policy(
                     tactic_id,
                     reward,
@@ -78,6 +84,12 @@ class AnalysisService:
                         "referee_confidence": state.get("referee_confidence", 0.5),
                         "trajectory_quality": state.get("trajectory_quality", 0.5),
                         "retrieval_confidence": retrieval_confidence,
+                        "context_score": top_tactic.get("context_score", 0.5),
+                        "attack_phase": state.get("attack_phase"),
+                        "tempo_profile": state.get("tempo_profile"),
+                        "court_context": state.get("court_context"),
+                        "last_hitter": state.get("last_hitter"),
+                        "auto_result": auto_result,
                     },
                 ) or {}
             except Exception as error:
@@ -90,6 +102,7 @@ class AnalysisService:
             motion_feedback=motion_feedback,
             trajectory_points=len(state.get("coordinates", [])),
             tactics=tactics,
+            state=state,
         )
         diagnostics["policy_update"] = policy_update
 
@@ -197,6 +210,10 @@ class AnalysisService:
                 "auto_result": state.get("auto_result"),
                 "trajectory_quality": state.get("trajectory_quality", 0.5),
                 "referee_confidence": state.get("referee_confidence", 0.5),
+                "attack_phase": state.get("attack_phase", "neutral"),
+                "tempo_profile": state.get("tempo_profile", "medium"),
+                "last_hitter": state.get("last_hitter", "UNKNOWN"),
+                "pressure_index": state.get("pressure_index", 0.5),
             }
             tactics = self.rag.retrieve(query_text, context=retrieval_context)
             pipeline_status["retrieval"] = "ok" if tactics else "empty"
@@ -252,8 +269,14 @@ class AnalysisService:
             tactic_id = tactics[0].get("metadata", {}).get("tactic_id")
             if tactic_id and auto_result != "UNKNOWN":
                 try:
-                    reward = self.physics.calculate_reward(auto_result)
+                    reward = self.physics.calculate_reward(
+                        auto_result,
+                        trajectory_quality=state.get("trajectory_quality", 0.5),
+                        referee_confidence=state.get("referee_confidence", 0.5),
+                        pressure_index=state.get("pressure_index", 0.5),
+                    )
                     retrieval_confidence = self._retrieval_confidence(tactics)
+                    top_tactic = tactics[0]
                     policy_update = self.rag.update_policy(
                         tactic_id,
                         reward,
@@ -261,6 +284,12 @@ class AnalysisService:
                             "referee_confidence": state.get("referee_confidence", 0.5),
                             "trajectory_quality": state.get("trajectory_quality", 0.5),
                             "retrieval_confidence": retrieval_confidence,
+                            "context_score": top_tactic.get("context_score", 0.5),
+                            "attack_phase": state.get("attack_phase"),
+                            "tempo_profile": state.get("tempo_profile"),
+                            "court_context": state.get("court_context"),
+                            "last_hitter": state.get("last_hitter"),
+                            "auto_result": auto_result,
                         },
                     ) or {}
                 except Exception as error:
@@ -273,6 +302,7 @@ class AnalysisService:
             motion_feedback=motion_feedback,
             trajectory_points=len(state.get("coordinates", [])),
             tactics=tactics,
+            state=state,
         )
         diagnostics["policy_update"] = policy_update
 
@@ -292,4 +322,5 @@ class AnalysisService:
         if not tactics:
             return 0.35
         top_score = float(tactics[0].get("score", 0.0))
-        return max(0.35, min(top_score, 1.0))
+        context_score = float(tactics[0].get("context_score", 0.0))
+        return max(0.35, min(0.55 * top_score + 0.45 * context_score, 1.0))

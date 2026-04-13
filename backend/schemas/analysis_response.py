@@ -26,6 +26,12 @@ class TacticPayload(BaseModel):
     reason: str = ""
     why_this_tactic: str = ""
     risk_note: str = ""
+    exploration_bonus: float = 0.0
+    pressure_bonus: float = 0.0
+    risk_penalty: float = 0.0
+    stability_bonus: float = 0.0
+    fit_breakdown: Dict[str, Any] = Field(default_factory=dict)
+    selection_profile: Dict[str, Any] = Field(default_factory=dict)
     metadata: Dict[str, Any] = Field(default_factory=dict)
     debug_stats: str = ""
 
@@ -43,6 +49,8 @@ class DiagnosticsPayload(BaseModel):
     motion_feedback: str = ""
     trajectory_points: int = 0
     analysis_quality: str = "medium"
+    retrieval_summary: Dict[str, Any] = Field(default_factory=dict)
+    physics_profile: Dict[str, Any] = Field(default_factory=dict)
     policy_update: Dict[str, Any] = Field(default_factory=dict)
 
 
