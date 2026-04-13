@@ -7,6 +7,7 @@ import numpy as np
 from chromadb.utils import embedding_functions
 
 from config import DB_PATH
+from .policy_scheduler import PolicyScheduler
 from .scenario_memory import ScenarioMemory
 from .tactic_catalog import TACTIC_NAME_BY_ID, TACTIC_SEEDS
 from .tactic_optimizer import TacticOptimizer
@@ -23,6 +24,7 @@ class RAGEngine:
             embedding_function=self.emb_fn,
         )
         self.optimizer = TacticOptimizer()
+        self.scheduler = PolicyScheduler()
         self.scenario_memory = ScenarioMemory(os.path.join(DB_PATH, "scenario_memory.json"))
         self._sync_seed_tactics()
 
@@ -92,7 +94,10 @@ class RAGEngine:
             optimization = self.optimizer.score_candidate(metadata, semantic_score, bayesian_score, context)
             tactic_id = metadata.get("tactic_id")
             scenario_bias = self.scenario_memory.scenario_bias(context, tactic_id)
-            final_score = float(np.clip(optimization["final_score"] + scenario_bias, 0.0, 1.3))
+            schedule = self.scheduler.schedule_retrieval(context, scenario_summary, metadata)
+            scheduler_bias = float(schedule.get("scheduler_bias", 0.0))
+            temperature = float(schedule.get("exploration_temperature", 1.0))
+            final_score = float(np.clip(optimization["final_score"] * temperature + scenario_bias + scheduler_bias, 0.0, 1.35))
             expected_win_rate = (alpha / (alpha + beta_val) * 100) if (alpha + beta_val) else 50.0
             tactic_name = metadata.get("name") or TACTIC_NAME_BY_ID.get(tactic_id) or document
 
@@ -111,6 +116,7 @@ class RAGEngine:
                     "risk_penalty": optimization["risk_penalty"],
                     "stability_bonus": optimization["stability_bonus"],
                     "scenario_bias": scenario_bias,
+                    "scheduler_profile": schedule,
                     "expected_win_rate": round(expected_win_rate, 2),
                     "fit_breakdown": optimization["fit_breakdown"],
                     "selection_profile": optimization["selection_profile"],
@@ -118,7 +124,8 @@ class RAGEngine:
                     "debug_stats": (
                         f"semantic={semantic_score:.2f}/bayes={bayesian_score:.2f}/context={optimization['context_score']:.2f}/"
                         f"quality={optimization['quality_weight']:.2f}/explore={optimization['exploration_bonus']:.2f}/"
-                        f"pressure={optimization['pressure_bonus']:.2f}/risk={optimization['risk_penalty']:.2f}/scenario={scenario_bias:.2f}"
+                        f"pressure={optimization['pressure_bonus']:.2f}/risk={optimization['risk_penalty']:.2f}/"
+                        f"scenario={scenario_bias:.2f}/scheduler={scheduler_bias:.2f}"
                     ),
                 }
             )
@@ -133,7 +140,15 @@ class RAGEngine:
 
         current_meta = result["metadatas"][0]
         context = context or {}
+        scenario_summary = self.scenario_memory.summarize(context)
+        schedule = self.scheduler.schedule_update(context, scenario_summary)
         plan = self.optimizer.build_update_plan(current_meta, reward, context)
+
+        learning_scale = float(schedule.get("learning_rate_scale", 1.0))
+        if reward >= 0:
+            plan["alpha"] = float(plan["alpha"] + plan["weighted_increment"] * max(0.0, learning_scale - 1.0))
+        else:
+            plan["beta"] = float(plan["beta"] + plan["weighted_increment"] * max(0.0, learning_scale - 1.0))
 
         current_meta["alpha"] = plan["alpha"]
         current_meta["beta"] = plan["beta"]
@@ -157,5 +172,6 @@ class RAGEngine:
             "strategy_tag": plan["strategy_tag"],
             "policy_update_reason": plan["policy_update_reason"],
             "reward_components": plan["reward_components"],
+            "scheduler_profile": schedule,
             "scenario_summary": scenario_summary or {},
         }

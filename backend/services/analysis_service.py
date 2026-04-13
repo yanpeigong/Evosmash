@@ -4,6 +4,7 @@ from typing import Dict, List, Optional, Tuple
 
 import cv2
 
+from core.utils.match_intelligence import MatchIntelligenceAnalyzer
 from core.utils.rally_quality import RallyQualityAnalyzer
 from services.enrichment_service import (
     build_diagnostics_payload,
@@ -23,6 +24,7 @@ class AnalysisService:
         self.rag = rag
         self.coach = coach
         self.rally_quality = RallyQualityAnalyzer()
+        self.match_intelligence = MatchIntelligenceAnalyzer()
 
     def analyze_rally(self, filepath: str, match_type: str) -> Dict:
         warnings: List[str] = []
@@ -100,6 +102,7 @@ class AnalysisService:
                         "tempo_profile": state.get("tempo_profile"),
                         "last_hitter": state.get("last_hitter"),
                         "pressure_index": state.get("pressure_index", 0.5),
+                        "rally_quality": rally_quality.get("overall_quality", 0.5),
                         "auto_result": auto_result,
                     },
                 ) or {}
@@ -144,6 +147,7 @@ class AnalysisService:
                 "match_summary": {
                     "total_rallies_found": 0,
                     "valid_rallies_analyzed": 0,
+                    "intelligence": {},
                 },
                 "timeline": [],
                 "warnings": [f"Tracking failed: {error}"],
@@ -175,11 +179,13 @@ class AnalysisService:
             if timeline_item:
                 timeline.append(timeline_item)
 
+        intelligence = self.match_intelligence.summarize(timeline, match_type)
         return {
             "status": "success",
             "match_summary": {
                 "total_rallies_found": len(rally_segments),
                 "valid_rallies_analyzed": len(timeline),
+                "intelligence": intelligence,
             },
             "timeline": timeline,
             "warnings": warnings,
@@ -321,6 +327,7 @@ class AnalysisService:
                             "tempo_profile": state.get("tempo_profile"),
                             "last_hitter": state.get("last_hitter"),
                             "pressure_index": state.get("pressure_index", 0.5),
+                            "rally_quality": rally_quality.get("overall_quality", 0.5),
                             "auto_result": auto_result,
                         },
                     ) or {}
@@ -359,4 +366,6 @@ class AnalysisService:
         top_score = float(tactics[0].get("score", 0.0))
         context_score = float(tactics[0].get("context_score", 0.0))
         scenario_bias = float(tactics[0].get("scenario_bias", 0.0))
-        return max(0.35, min(0.5 * top_score + 0.4 * context_score + 0.1 * min(scenario_bias * 10, 1.0), 1.0))
+        scheduler_profile = tactics[0].get("scheduler_profile", {}) or {}
+        exploitation = float(scheduler_profile.get("exploitation_weight", 0.5) or 0.5)
+        return max(0.35, min(0.4 * top_score + 0.3 * context_score + 0.1 * min(scenario_bias * 10, 1.0) + 0.2 * exploitation, 1.0))

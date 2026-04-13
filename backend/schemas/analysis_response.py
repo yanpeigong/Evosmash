@@ -31,6 +31,7 @@ class TacticPayload(BaseModel):
     risk_penalty: float = 0.0
     stability_bonus: float = 0.0
     scenario_bias: float = 0.0
+    scheduler_profile: Dict[str, Any] = Field(default_factory=dict)
     fit_breakdown: Dict[str, Any] = Field(default_factory=dict)
     selection_profile: Dict[str, Any] = Field(default_factory=dict)
     scenario_summary: Dict[str, Any] = Field(default_factory=dict)
