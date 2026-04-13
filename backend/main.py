@@ -125,9 +125,11 @@ async def analyze_match(file: UploadFile = File(...), match_type: str = Form("si
 @app.post("/feedback")
 async def feedback(tactic_id: str = Form(...), result: str = Form(...)):
     reward = physics.calculate_reward(result)
-    rag.update_policy(tactic_id, reward)
+    rag.update_policy(tactic_id, reward, context={"auto_result": result})
     return {"status": "ok", "reward": reward}
 
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
+

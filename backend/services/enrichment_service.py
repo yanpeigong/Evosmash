@@ -1,13 +1,6 @@
 ﻿from typing import Dict, List
 
 
-RISK_ORDER = {
-    "low": 0,
-    "medium": 1,
-    "high": 2,
-}
-
-
 def _confidence_label(score: float, expected_win_rate: float, context_score: float = 0.5, risk_penalty: float = 0.0) -> str:
     composite = 0.45 * score + 0.3 * (expected_win_rate / 100.0) + 0.25 * context_score - 0.15 * risk_penalty
     if composite >= 0.76 or expected_win_rate >= 74:
@@ -58,6 +51,7 @@ def _build_risk_note(event_name: str, speed: float, confidence_label: str, expec
     if expected_win_rate < 55:
         return "The tactical edge is modest, so execution quality matters more than the pattern itself."
     return "This choice is reliable, but it still depends on early preparation and clean footwork into the shot."
+
 
 
 def enrich_tactics(state: Dict, tactics: List[Dict]) -> List[Dict]:
@@ -115,10 +109,12 @@ def enrich_tactics(state: Dict, tactics: List[Dict]) -> List[Dict]:
                 "risk_note": risk_note,
                 "fit_breakdown": tactic.get("fit_breakdown", {}),
                 "selection_profile": tactic.get("selection_profile", {}),
+                "scenario_summary": tactic.get("scenario_summary", {}),
             }
         )
 
     return enriched
+
 
 
 def normalize_advice_payload(raw_advice, tactics: List[Dict], state: Dict) -> Dict:
@@ -150,6 +146,7 @@ def normalize_advice_payload(raw_advice, tactics: List[Dict], state: Dict) -> Di
     }
 
 
+
 def build_summary_payload(state: Dict, advice: Dict, tactics: List[Dict], auto_result: str) -> Dict:
     top_tactic = tactics[0]["name"] if tactics else "Neutral reset"
     confidence_label = advice.get("confidence_label", tactics[0].get("confidence_label", "medium") if tactics else "medium")
@@ -177,6 +174,7 @@ def build_summary_payload(state: Dict, advice: Dict, tactics: List[Dict], auto_r
     }
 
 
+
 def build_diagnostics_payload(
     warnings: List[str],
     pipeline_status: Dict[str, str],
@@ -184,13 +182,20 @@ def build_diagnostics_payload(
     trajectory_points: int,
     tactics: List[Dict],
     state: Dict = None,
+    tracker_diagnostics: Dict = None,
+    motion_profile: Dict = None,
+    rally_quality: Dict = None,
 ) -> Dict:
     state = state or {}
+    tracker_diagnostics = tracker_diagnostics or {}
+    motion_profile = motion_profile or {}
+    rally_quality = rally_quality or {}
+
     if warnings:
         analysis_quality = "degraded" if len(warnings) > 1 else "limited"
     elif trajectory_points < 8:
         analysis_quality = "low"
-    elif tactics and tactics[0].get("confidence_label") == "high":
+    elif rally_quality.get("overall_quality", 0.0) >= 0.76:
         analysis_quality = "high"
     else:
         analysis_quality = "medium"
@@ -208,10 +213,14 @@ def build_diagnostics_payload(
             "tempo_band": metadata.get("tempo_band", "medium"),
             "risk_level": metadata.get("risk_level", "medium"),
             "fit_breakdown": top.get("fit_breakdown", {}),
+            "scenario_summary": top.get("scenario_summary", {}),
         }
 
+    combined_warnings = list(warnings)
+    combined_warnings.extend(rally_quality.get("warnings", []))
+
     return {
-        "warnings": warnings,
+        "warnings": combined_warnings,
         "pipeline": pipeline_status,
         "motion_feedback": motion_feedback,
         "trajectory_points": trajectory_points,
@@ -223,7 +232,11 @@ def build_diagnostics_payload(
             "shot_shape": state.get("shot_shape", "balanced-rally"),
             "pressure_index": state.get("pressure_index", 0.0),
         },
+        "tracker_diagnostics": tracker_diagnostics,
+        "motion_profile": motion_profile,
+        "rally_quality": rally_quality,
     }
+
 
 
 def make_empty_rally_response(match_type: str, warning: str) -> Dict:
@@ -260,6 +273,9 @@ def make_empty_rally_response(match_type: str, warning: str) -> Dict:
             "shot_shape": "balanced-rally",
             "pressure_index": 0.0,
         },
+        "tracker_diagnostics": {},
+        "motion_profile": {},
+        "rally_quality": {},
     }
     return {
         "physics": {

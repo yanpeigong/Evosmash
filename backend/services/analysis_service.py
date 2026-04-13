@@ -4,6 +4,7 @@ from typing import Dict, List, Optional, Tuple
 
 import cv2
 
+from core.utils.rally_quality import RallyQualityAnalyzer
 from services.enrichment_service import (
     build_diagnostics_payload,
     build_summary_payload,
@@ -21,6 +22,7 @@ class AnalysisService:
         self.physics = physics
         self.rag = rag
         self.coach = coach
+        self.rally_quality = RallyQualityAnalyzer()
 
     def analyze_rally(self, filepath: str, match_type: str) -> Dict:
         warnings: List[str] = []
@@ -35,8 +37,13 @@ class AnalysisService:
 
         self._prepare_court(filepath, warnings, pipeline_status)
 
+        tracker_diagnostics = {}
         try:
-            trajectory, fps = self.tracker.infer(filepath)
+            if hasattr(self.tracker, "infer_detailed"):
+                trajectory, fps, tracker_diagnostics = self.tracker.infer_detailed(filepath)
+            else:
+                trajectory, fps = self.tracker.infer(filepath)
+                tracker_diagnostics = getattr(self.tracker, "last_diagnostics", {}) or {}
             pipeline_status["tracking"] = "ok"
         except Exception as error:
             pipeline_status["tracking"] = "failed"
@@ -45,7 +52,7 @@ class AnalysisService:
         if not trajectory or len(trajectory) < 2:
             return make_empty_rally_response(match_type, "Tracking returned too few points to analyze the rally.")
 
-        motion_feedback = self._get_pose_feedback(filepath, warnings, pipeline_status)
+        motion_feedback, motion_profile = self._get_pose_feedback(filepath, warnings, pipeline_status)
 
         try:
             state = self.physics.analyze_trajectory(trajectory, fps, match_type=match_type)
@@ -56,8 +63,9 @@ class AnalysisService:
 
         state["description"] += f" [Motion: {motion_feedback}]"
         auto_result = state.get("auto_result", "UNKNOWN")
+        rally_quality = self.rally_quality.evaluate(state, tracker_diagnostics=tracker_diagnostics, motion_profile=motion_profile)
 
-        tactics = self._get_tactics(state, match_type, warnings, pipeline_status)
+        tactics = self._get_tactics(state, match_type, rally_quality, warnings, pipeline_status)
         advice = self._get_advice(state, tactics, warnings, pipeline_status)
 
         tactic_id = None
@@ -81,14 +89,17 @@ class AnalysisService:
                     tactic_id,
                     reward,
                     context={
+                        "event": state.get("event"),
+                        "match_type": match_type,
+                        "court_context": state.get("court_context"),
                         "referee_confidence": state.get("referee_confidence", 0.5),
                         "trajectory_quality": state.get("trajectory_quality", 0.5),
                         "retrieval_confidence": retrieval_confidence,
                         "context_score": top_tactic.get("context_score", 0.5),
                         "attack_phase": state.get("attack_phase"),
                         "tempo_profile": state.get("tempo_profile"),
-                        "court_context": state.get("court_context"),
                         "last_hitter": state.get("last_hitter"),
+                        "pressure_index": state.get("pressure_index", 0.5),
                         "auto_result": auto_result,
                     },
                 ) or {}
@@ -103,6 +114,9 @@ class AnalysisService:
             trajectory_points=len(state.get("coordinates", [])),
             tactics=tactics,
             state=state,
+            tracker_diagnostics=tracker_diagnostics,
+            motion_profile=motion_profile,
+            rally_quality=rally_quality,
         )
         diagnostics["policy_update"] = policy_update
 
@@ -145,15 +159,18 @@ class AnalysisService:
             fsm.update(frame_index, coordinate)
 
         rally_segments = fsm.get_segments()
+        segment_summaries = fsm.get_segment_summaries() if hasattr(fsm, "get_segment_summaries") else []
         timeline = []
         for rally_index, rally_trajectory in enumerate(rally_segments, start=1):
             if len(rally_trajectory) < 3:
                 continue
+            segment_summary = segment_summaries[rally_index - 1] if rally_index - 1 < len(segment_summaries) else {}
             timeline_item = self._analyze_rally_segment(
                 rally_index=rally_index,
                 rally_trajectory=rally_trajectory,
                 fps=fps,
                 match_type=match_type,
+                tracker_diagnostics=segment_summary,
             )
             if timeline_item:
                 timeline.append(timeline_item)
@@ -188,18 +205,23 @@ class AnalysisService:
             if "court_detection" in pipeline_status:
                 pipeline_status["court_detection"] = "fallback"
 
-    def _get_pose_feedback(self, filepath: str, warnings: List[str], pipeline_status: Dict[str, str]) -> str:
+    def _get_pose_feedback(self, filepath: str, warnings: List[str], pipeline_status: Dict[str, str]):
         try:
             pose_sequence = self.pose_analyzer.infer(filepath)
-            motion_feedback = self.pose_analyzer.evaluate_motion(pose_sequence)
+            if hasattr(self.pose_analyzer, "evaluate_motion_profile"):
+                motion_profile = self.pose_analyzer.evaluate_motion_profile(pose_sequence)
+                motion_feedback = motion_profile.get("feedback_text", "Pose analysis unavailable.")
+            else:
+                motion_feedback = self.pose_analyzer.evaluate_motion(pose_sequence)
+                motion_profile = {}
             pipeline_status["pose"] = "ok"
-            return motion_feedback
+            return motion_feedback, motion_profile
         except Exception as error:
             warnings.append(f"Pose analysis unavailable: {error}")
             pipeline_status["pose"] = "fallback"
-            return "Pose analysis unavailable."
+            return "Pose analysis unavailable.", {}
 
-    def _get_tactics(self, state: Dict, match_type: str, warnings: List[str], pipeline_status: Dict[str, str]) -> List[Dict]:
+    def _get_tactics(self, state: Dict, match_type: str, rally_quality: Dict, warnings: List[str], pipeline_status: Dict[str, str]) -> List[Dict]:
         try:
             query_text = f"[{match_type}] {state['description']}"
             retrieval_context = {
@@ -214,6 +236,7 @@ class AnalysisService:
                 "tempo_profile": state.get("tempo_profile", "medium"),
                 "last_hitter": state.get("last_hitter", "UNKNOWN"),
                 "pressure_index": state.get("pressure_index", 0.5),
+                "rally_quality": rally_quality.get("overall_quality", 0.5),
             }
             tactics = self.rag.retrieve(query_text, context=retrieval_context)
             pipeline_status["retrieval"] = "ok" if tactics else "empty"
@@ -238,7 +261,7 @@ class AnalysisService:
 
         return BadmintonFSM(fps=fps, width=width, height=height)
 
-    def _analyze_rally_segment(self, rally_index: int, rally_trajectory: List[Tuple[int, int]], fps: float, match_type: str) -> Optional[Dict]:
+    def _analyze_rally_segment(self, rally_index: int, rally_trajectory: List[Tuple[int, int]], fps: float, match_type: str, tracker_diagnostics: Dict | None = None) -> Optional[Dict]:
         warnings: List[str] = []
         pipeline_status = {
             "tracking": "segment",
@@ -247,6 +270,7 @@ class AnalysisService:
             "retrieval": "pending",
             "coach": "pending",
         }
+        tracker_diagnostics = tracker_diagnostics or {}
 
         try:
             state = self.physics.analyze_trajectory(rally_trajectory, fps, match_type)
@@ -258,9 +282,14 @@ class AnalysisService:
             return None
 
         motion_feedback = "Pose analysis is only computed for short rally clips."
+        motion_profile = {
+            "quality_label": "segment-only",
+            "readiness_score": 0.45,
+        }
         state["description"] += f" [Motion: {motion_feedback}]"
         auto_result = state.get("auto_result", "UNKNOWN")
-        tactics = self._get_tactics(state, match_type, warnings, pipeline_status)
+        rally_quality = self.rally_quality.evaluate(state, tracker_diagnostics=tracker_diagnostics, motion_profile=motion_profile)
+        tactics = self._get_tactics(state, match_type, rally_quality, warnings, pipeline_status)
         advice = self._get_advice(state, tactics, warnings, pipeline_status)
 
         reward = 0.0
@@ -281,14 +310,17 @@ class AnalysisService:
                         tactic_id,
                         reward,
                         context={
+                            "event": state.get("event"),
+                            "match_type": match_type,
+                            "court_context": state.get("court_context"),
                             "referee_confidence": state.get("referee_confidence", 0.5),
                             "trajectory_quality": state.get("trajectory_quality", 0.5),
                             "retrieval_confidence": retrieval_confidence,
                             "context_score": top_tactic.get("context_score", 0.5),
                             "attack_phase": state.get("attack_phase"),
                             "tempo_profile": state.get("tempo_profile"),
-                            "court_context": state.get("court_context"),
                             "last_hitter": state.get("last_hitter"),
+                            "pressure_index": state.get("pressure_index", 0.5),
                             "auto_result": auto_result,
                         },
                     ) or {}
@@ -303,6 +335,9 @@ class AnalysisService:
             trajectory_points=len(state.get("coordinates", [])),
             tactics=tactics,
             state=state,
+            tracker_diagnostics=tracker_diagnostics,
+            motion_profile=motion_profile,
+            rally_quality=rally_quality,
         )
         diagnostics["policy_update"] = policy_update
 
@@ -323,4 +358,5 @@ class AnalysisService:
             return 0.35
         top_score = float(tactics[0].get("score", 0.0))
         context_score = float(tactics[0].get("context_score", 0.0))
-        return max(0.35, min(0.55 * top_score + 0.45 * context_score, 1.0))
+        scenario_bias = float(tactics[0].get("scenario_bias", 0.0))
+        return max(0.35, min(0.5 * top_score + 0.4 * context_score + 0.1 * min(scenario_bias * 10, 1.0), 1.0))

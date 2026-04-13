@@ -1,10 +1,13 @@
-﻿import os
+﻿from __future__ import annotations
+
+import os
 
 import chromadb
 import numpy as np
 from chromadb.utils import embedding_functions
 
 from config import DB_PATH
+from .scenario_memory import ScenarioMemory
 from .tactic_catalog import TACTIC_NAME_BY_ID, TACTIC_SEEDS
 from .tactic_optimizer import TacticOptimizer
 
@@ -20,6 +23,7 @@ class RAGEngine:
             embedding_function=self.emb_fn,
         )
         self.optimizer = TacticOptimizer()
+        self.scenario_memory = ScenarioMemory(os.path.join(DB_PATH, "scenario_memory.json"))
         self._sync_seed_tactics()
 
     def _sync_seed_tactics(self):
@@ -75,6 +79,7 @@ class RAGEngine:
         metadatas = results["metadatas"][0]
         distances = results["distances"][0]
         context = context or {}
+        scenario_summary = self.scenario_memory.summarize(context)
 
         for index, document in enumerate(documents):
             metadata = metadatas[index]
@@ -85,9 +90,10 @@ class RAGEngine:
             bayesian_score = float(np.clip(0.55 * bayes_mean + 0.45 * thompson_sample, 0.0, 1.0))
             semantic_score = float(np.clip(1.0 / (1.0 + distances[index]), 0.0, 1.0))
             optimization = self.optimizer.score_candidate(metadata, semantic_score, bayesian_score, context)
-            expected_win_rate = (alpha / (alpha + beta_val) * 100) if (alpha + beta_val) else 50.0
-
             tactic_id = metadata.get("tactic_id")
+            scenario_bias = self.scenario_memory.scenario_bias(context, tactic_id)
+            final_score = float(np.clip(optimization["final_score"] + scenario_bias, 0.0, 1.3))
+            expected_win_rate = (alpha / (alpha + beta_val) * 100) if (alpha + beta_val) else 50.0
             tactic_name = metadata.get("name") or TACTIC_NAME_BY_ID.get(tactic_id) or document
 
             candidates.append(
@@ -95,7 +101,7 @@ class RAGEngine:
                     "name": tactic_name,
                     "content": document,
                     "metadata": metadata,
-                    "score": optimization["final_score"],
+                    "score": round(final_score, 3),
                     "semantic_score": round(semantic_score, 3),
                     "bayesian_score": round(bayesian_score, 3),
                     "context_score": optimization["context_score"],
@@ -104,13 +110,15 @@ class RAGEngine:
                     "pressure_bonus": optimization["pressure_bonus"],
                     "risk_penalty": optimization["risk_penalty"],
                     "stability_bonus": optimization["stability_bonus"],
+                    "scenario_bias": scenario_bias,
                     "expected_win_rate": round(expected_win_rate, 2),
                     "fit_breakdown": optimization["fit_breakdown"],
                     "selection_profile": optimization["selection_profile"],
+                    "scenario_summary": scenario_summary,
                     "debug_stats": (
                         f"semantic={semantic_score:.2f}/bayes={bayesian_score:.2f}/context={optimization['context_score']:.2f}/"
                         f"quality={optimization['quality_weight']:.2f}/explore={optimization['exploration_bonus']:.2f}/"
-                        f"pressure={optimization['pressure_bonus']:.2f}/risk={optimization['risk_penalty']:.2f}"
+                        f"pressure={optimization['pressure_bonus']:.2f}/risk={optimization['risk_penalty']:.2f}/scenario={scenario_bias:.2f}"
                     ),
                 }
             )
@@ -132,6 +140,8 @@ class RAGEngine:
         current_meta["matches"] = plan["matches"]
 
         self.collection.update(ids=[tactic_id], metadatas=[current_meta])
+        scenario_summary = self.scenario_memory.update(context, tactic_id, context.get("auto_result", "UNKNOWN"))
+
         print(
             f"[RL Evolution] ID:{tactic_id} | alpha:{plan['alpha']:.2f} | beta:{plan['beta']:.2f} | matches:{plan['matches']}"
         )
@@ -147,4 +157,5 @@ class RAGEngine:
             "strategy_tag": plan["strategy_tag"],
             "policy_update_reason": plan["policy_update_reason"],
             "reward_components": plan["reward_components"],
+            "scenario_summary": scenario_summary or {},
         }

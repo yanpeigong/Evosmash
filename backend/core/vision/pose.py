@@ -1,15 +1,19 @@
+﻿from __future__ import annotations
+
 import numpy as np
 import torch
 from scipy.signal import savgol_filter
 from ultralytics import YOLO
 
 from config import YOLO_PATH
+from core.vision.motion_scorer import MotionScorer
 
 
 class PoseAnalyzer:
     def __init__(self):
         self.model = YOLO(YOLO_PATH)
         self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
+        self.motion_scorer = MotionScorer()
 
     def infer(self, video_path):
         results = self.model(video_path, device=self.device, verbose=False, stream=True)
@@ -28,6 +32,9 @@ class PoseAnalyzer:
         return pose_sequence
 
     def evaluate_motion(self, pose_seq):
+        return self.evaluate_motion_profile(pose_seq).get("feedback_text", "No reliable body motion was detected.")
+
+    def evaluate_motion_profile(self, pose_seq):
         knee_angles = []
         arm_angles = []
 
@@ -40,27 +47,27 @@ class PoseAnalyzer:
             knee_angles.append(self._angle(keypoints[12], keypoints[14], keypoints[16]))
             arm_angles.append(self._angle(keypoints[6], keypoints[8], keypoints[10]))
 
-        knee_angles = np.array(knee_angles)
-        arm_angles = np.array(arm_angles)
+        knee_angles = np.array(knee_angles, dtype=np.float32)
+        arm_angles = np.array(arm_angles, dtype=np.float32)
 
         valid_mask = ~np.isnan(knee_angles)
         if valid_mask.sum() < 5:
-            return "No reliable body motion was detected."
+            profile = self.motion_scorer.score(pose_seq, knee_angles, arm_angles)
+            profile["feedback_text"] = "No reliable body motion was detected."
+            return profile
 
-        knee_angles = knee_angles[valid_mask]
-        arm_angles = arm_angles[valid_mask]
-
-        window_length = min(11, len(knee_angles) if len(knee_angles) % 2 == 1 else len(knee_angles) - 1)
+        knee_valid = knee_angles[valid_mask]
+        arm_valid = arm_angles[valid_mask]
+        window_length = min(11, len(knee_valid) if len(knee_valid) % 2 == 1 else len(knee_valid) - 1)
         window_length = max(window_length, 5)
 
-        knee_smooth = savgol_filter(knee_angles, window_length, 3, mode="interp")
-        arm_smooth = savgol_filter(arm_angles, window_length, 3, mode="interp")
+        knee_smooth = savgol_filter(knee_valid, window_length, 3, mode="interp")
+        arm_smooth = savgol_filter(arm_valid, window_length, 3, mode="interp")
 
         min_knee = np.percentile(knee_smooth, 5)
         max_arm = np.percentile(arm_smooth, 95)
 
         feedback = []
-
         if min_knee > 135:
             feedback.append("Base stays too high. Lower earlier to improve balance on defense.")
         elif min_knee < 100:
@@ -73,7 +80,15 @@ class PoseAnalyzer:
         else:
             feedback.append("Contact point is well extended with strong striking structure.")
 
-        return " | ".join(feedback)
+        profile = self.motion_scorer.score(pose_seq, knee_angles, arm_angles)
+        profile.update(
+            {
+                "feedback_text": " | ".join(feedback),
+                "smoothed_knee_floor": round(float(min_knee), 3),
+                "smoothed_arm_peak": round(float(max_arm), 3),
+            }
+        )
+        return profile
 
     def _angle(self, a, b, c):
         a, b, c = a[:2], b[:2], c[:2]
@@ -82,7 +97,6 @@ class PoseAnalyzer:
 
         ba = a - b
         bc = c - b
-
         norm = np.linalg.norm(ba) * np.linalg.norm(bc)
         if norm < 1e-6:
             return np.nan
