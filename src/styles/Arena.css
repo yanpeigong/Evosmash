@@ -1,4 +1,4 @@
-/* Arena Layout */
+﻿/* Arena Layout */
 .arena-container {
     height: 100%;
     display: flex;
@@ -17,6 +17,7 @@
     gap: 30px;
     background: radial-gradient(circle at center, #1a1a1a 0%, #050505 100%);
     padding: 24px;
+    z-index: 5;
 }
 
 .arena-header {
@@ -167,7 +168,9 @@
     position: relative;
     width: 100%;
     height: 100%;
-    background: #000;
+    background:
+        radial-gradient(circle at top, rgba(var(--color-primary-rgb), 0.12), transparent 38%),
+        linear-gradient(180deg, #051017 0%, #02060c 100%);
 }
 
 .hud-video {
@@ -178,22 +181,21 @@
 
 .hud-overlay {
     position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
+    inset: 0;
     display: flex;
     flex-direction: column;
     pointer-events: none;
-    /* Let clicks pass through if needed, but here we might want controls */
+    overflow-y: auto;
+    padding-bottom: 24px;
+    background:
+        linear-gradient(to bottom, rgba(1, 5, 10, 0.72), rgba(1, 5, 10, 0.12) 20%, rgba(1, 5, 10, 0.78) 100%);
 }
 
-/* Top Bar */
 .hud-top-bar {
     display: flex;
     justify-content: space-between;
     padding: 20px;
-    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.8), transparent);
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.82), transparent);
     pointer-events: auto;
 }
 
@@ -261,31 +263,359 @@
     color: #aaa;
 }
 
-/* AR Layer */
-.hud-ar-layer {
-    flex: 1;
+.hud-summary-panel,
+.hud-diagnostics-panel {
     position: relative;
+    margin: 14px 20px 0;
+    padding: 16px 18px;
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(18px);
+    pointer-events: auto;
+    overflow: hidden;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
 }
 
-.ar-lines {
+.hud-summary-panel::before,
+.hud-diagnostics-panel::before {
+    content: '';
+    position: absolute;
+    inset: 0 auto auto 0;
     width: 100%;
-    height: 100%;
-    filter: drop-shadow(0 0 5px var(--color-secondary));
+    height: 1px;
+    background: linear-gradient(90deg, rgba(var(--color-primary-rgb), 0.7), rgba(255, 255, 255, 0));
 }
 
-.trajectory-line {
-    fill: none;
-    stroke: var(--color-secondary);
-    stroke-width: 2;
-    stroke-dasharray: 10;
-    animation: dash 1s linear infinite;
+.hud-summary-panel {
+    background: linear-gradient(135deg, rgba(6, 18, 30, 0.92), rgba(2, 9, 18, 0.8));
 }
 
-.impact-point {
-    fill: var(--color-primary);
+.hud-diagnostics-panel {
+    background: linear-gradient(135deg, rgba(13, 20, 33, 0.92), rgba(4, 10, 19, 0.82));
 }
 
-/* Coach Bubble */
+.hud-summary-header,
+.hud-diagnostics-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.hud-summary-header h2 {
+    margin: 4px 0 0;
+    font-size: 1.15rem;
+    line-height: 1.2;
+    color: var(--text-primary);
+}
+
+.hud-summary-kicker {
+    margin: 0;
+    font-size: 0.65rem;
+    letter-spacing: 1.9px;
+    color: var(--text-muted);
+}
+
+.hud-summary-copy {
+    margin: 14px 0 0;
+    color: rgba(236, 246, 255, 0.92);
+    font-size: 0.92rem;
+    line-height: 1.6;
+    max-width: 64ch;
+}
+
+.hud-diagnostics-header span {
+    padding: 6px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-secondary);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    white-space: nowrap;
+}
+
+.hud-metric-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 14px;
+}
+
+.hud-metric-card {
+    position: relative;
+    min-height: 104px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    justify-content: space-between;
+    padding: 12px;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.hud-metric-card strong {
+    font-size: 1rem;
+    line-height: 1.15;
+    color: var(--text-primary);
+}
+
+.hud-metric-icon {
+    width: 32px;
+    height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.hud-metric-label {
+    font-size: 0.7rem;
+    line-height: 1.35;
+    color: var(--text-secondary);
+    letter-spacing: 0.4px;
+}
+
+.hud-metric-card.cyan {
+    box-shadow: inset 0 0 0 1px rgba(61, 234, 255, 0.08);
+}
+
+.hud-metric-card.cyan .hud-metric-icon {
+    color: #53ebff;
+    background: rgba(61, 234, 255, 0.12);
+}
+
+.hud-metric-card.green {
+    box-shadow: inset 0 0 0 1px rgba(75, 255, 169, 0.08);
+}
+
+.hud-metric-card.green .hud-metric-icon {
+    color: #5bffbf;
+    background: rgba(75, 255, 169, 0.12);
+}
+
+.hud-metric-card.amber {
+    box-shadow: inset 0 0 0 1px rgba(255, 195, 82, 0.08);
+}
+
+.hud-metric-card.amber .hud-metric-icon {
+    color: #ffc55d;
+    background: rgba(255, 195, 82, 0.12);
+}
+
+.hud-metric-card.violet {
+    box-shadow: inset 0 0 0 1px rgba(170, 122, 255, 0.08);
+}
+
+.hud-metric-card.violet .hud-metric-icon {
+    color: #bc94ff;
+    background: rgba(170, 122, 255, 0.12);
+}
+
+.hud-notes-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.hud-note-card {
+    min-height: 112px;
+    padding: 14px;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.hud-note-card strong {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    color: var(--text-primary);
+    font-size: 0.8rem;
+    letter-spacing: 0.2px;
+}
+
+.hud-note-card p {
+    margin: 10px 0 0;
+    color: rgba(228, 240, 248, 0.9);
+    font-size: 0.84rem;
+    line-height: 1.58;
+}
+
+.hud-note-list {
+    margin: 10px 0 0;
+    padding-left: 18px;
+    color: rgba(228, 240, 248, 0.92);
+}
+
+.hud-note-list li {
+    margin-bottom: 6px;
+    line-height: 1.5;
+    font-size: 0.82rem;
+}
+
+.hud-note-meta,
+.hud-note-inline {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.hud-note-meta span,
+.hud-note-inline span {
+    padding: 5px 9px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: var(--text-secondary);
+    font-size: 0.72rem;
+    line-height: 1.2;
+}
+.hud-note-card.emphasis {
+    background: linear-gradient(135deg, rgba(var(--color-primary-rgb), 0.14), rgba(255, 255, 255, 0.03));
+    border-color: rgba(var(--color-primary-rgb), 0.28);
+}
+
+.hud-note-card.warning {
+    background: linear-gradient(135deg, rgba(255, 182, 74, 0.12), rgba(255, 255, 255, 0.03));
+    border-color: rgba(255, 182, 74, 0.22);
+}
+
+.hud-note-card.warning ul {
+    margin: 10px 0 0;
+    padding-left: 18px;
+    color: #f8dfb2;
+}
+
+.hud-note-card.warning li {
+    margin-bottom: 6px;
+    line-height: 1.5;
+    font-size: 0.82rem;
+}
+
+.hud-tactics-panel {
+    display: grid;
+    gap: 12px;
+    padding: 16px 20px 0;
+    pointer-events: auto;
+}
+
+.tactic-intel-card {
+    background: linear-gradient(180deg, rgba(7, 16, 28, 0.9) 0%, rgba(3, 8, 16, 0.82) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 16px;
+    padding: 14px;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+    overflow: hidden;
+}
+
+.tactic-intel-card.high {
+    border-color: rgba(10, 255, 0, 0.28);
+    box-shadow: 0 0 0 1px rgba(10, 255, 0, 0.12), 0 16px 40px rgba(0, 0, 0, 0.35);
+}
+
+.tactic-intel-card.medium {
+    border-color: rgba(0, 240, 255, 0.25);
+}
+
+.tactic-intel-card.low {
+    border-color: rgba(255, 204, 0, 0.25);
+}
+
+.tactic-intel-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
+.tactic-intel-kicker {
+    margin: 0 0 6px;
+    font-size: 0.65rem;
+    letter-spacing: 1.6px;
+    color: var(--text-muted);
+}
+
+.tactic-intel-header h3 {
+    margin: 0;
+    font-size: 1rem;
+    color: var(--text-primary);
+}
+
+.intel-confidence {
+    flex-shrink: 0;
+    padding: 5px 10px;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    color: var(--text-primary);
+}
+
+.intel-confidence.high {
+    color: var(--color-secondary);
+    background: rgba(10, 255, 0, 0.1);
+    border-color: rgba(10, 255, 0, 0.26);
+}
+
+.intel-confidence.medium {
+    color: var(--color-primary);
+    background: rgba(var(--color-primary-rgb), 0.1);
+    border-color: rgba(var(--color-primary-rgb), 0.2);
+}
+
+.intel-confidence.low {
+    color: var(--color-warning);
+    background: rgba(255, 204, 0, 0.1);
+    border-color: rgba(255, 204, 0, 0.22);
+}
+
+.tactic-intel-action {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    margin-bottom: 12px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-primary);
+    font-size: 0.82rem;
+    line-height: 1.45;
+}
+
+.tactic-intel-copy {
+    margin-top: 10px;
+}
+
+.tactic-intel-copy strong {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.74rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+}
+
+.tactic-intel-copy p {
+    margin: 6px 0 0;
+    color: var(--text-primary);
+    font-size: 0.82rem;
+    line-height: 1.5;
+}
+
+.tactic-intel-copy.caution p {
+    color: #f3d38d;
+}
+
 .hud-coach-bubble {
     margin: 20px;
     padding: 16px;
@@ -297,6 +627,7 @@
     align-items: center;
     gap: 12px;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    pointer-events: auto;
 }
 
 .avatar-circle {
@@ -326,7 +657,6 @@
     line-height: 1.4;
 }
 
-/* Animations */
 @keyframes rotate {
     from {
         transform: rotate(0deg);
@@ -407,6 +737,13 @@
     border: 1px solid #444;
     border-radius: 20px;
     pointer-events: auto;
+    transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+.close-btn:hover {
+    transform: translateY(-1px);
+    border-color: rgba(var(--color-primary-rgb), 0.35);
+    background: rgba(var(--color-primary-rgb), 0.12);
 }
 
 .hud-coach-section {
@@ -414,7 +751,7 @@
     display: flex;
     flex-direction: column;
     justify-content: flex-end;
-    padding-bottom: 100px;
+    padding-bottom: 40px;
 }
 
 .hud-actions {
@@ -429,7 +766,6 @@
     bottom: 30px;
 }
 
-/* Webcam Integration */
 .webcam-bg {
     position: absolute;
     top: 0;
@@ -474,11 +810,6 @@
     border-color: var(--color-primary);
 }
 
-.arena-idle {
-    /* ensure content sits on top */
-    z-index: 5;
-}
-
 .upload-trigger.recording .trigger-ring {
     border-color: #ff3333;
     animation: pulse-red 1s infinite;
@@ -504,6 +835,16 @@
     }
 }
 
+@media (max-width: 900px) {
+    .hud-metric-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .hud-notes-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
 @media (max-width: 480px) {
     .mode-switch button {
         padding: 8px 18px;
@@ -517,4 +858,53 @@
     .badge {
         font-size: 0.68rem;
     }
+
+    .hud-top-bar {
+        padding: 16px;
+    }
+
+    .hud-tags-bar,
+    .hud-summary-panel,
+    .hud-diagnostics-panel,
+    .hud-tactics-panel {
+        margin-left: 14px;
+        margin-right: 14px;
+        padding-left: 14px;
+        padding-right: 14px;
+    }
+
+    .hud-summary-panel,
+    .hud-diagnostics-panel {
+        padding-top: 14px;
+        padding-bottom: 14px;
+    }
+
+    .hud-tactics-panel {
+        padding-top: 14px;
+    }
+
+    .hud-summary-header,
+    .hud-diagnostics-header,
+    .tactic-intel-header {
+        flex-direction: column;
+    }
+
+    .hud-diagnostics-header span,
+    .intel-confidence {
+        align-self: flex-start;
+    }
+
+    .hud-metric-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .hud-metric-card {
+        min-height: 96px;
+    }
+
+    .hud-coach-bubble {
+        margin: 14px;
+    }
 }
+
+

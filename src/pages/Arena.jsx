@@ -1,8 +1,20 @@
-import React, {
+﻿import React, {
     useCallback, useEffect, useRef, useState,
 } from 'react';
 import {
-    Upload, Activity, Shield, Zap, Camera, Video,
+    Upload,
+    Activity,
+    Shield,
+    Zap,
+    Camera,
+    Video,
+    TriangleAlert,
+    Sparkles,
+    Gauge,
+    BrainCircuit,
+    Radar,
+    Siren,
+    CircleAlert,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Webcam from 'react-webcam';
@@ -12,6 +24,81 @@ import { soundManager } from '../utils/SoundManager';
 import '../styles/Arena.css';
 
 const getModeLabel = (mode) => (mode === 'doubles' ? 'Doubles' : 'Singles');
+
+const getConfidenceLabel = (label) => {
+    if (label === 'high') return 'High Confidence';
+    if (label === 'low') return 'Exploratory';
+    return 'Balanced';
+};
+
+const formatSignalLabel = (value) => {
+    if (!value) {
+        return 'Unknown';
+    }
+
+    return String(value)
+        .split(/[_-]/)
+        .filter(Boolean)
+        .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+        .join(' ');
+};
+
+const toPercentLabel = (value) => `${Math.round((Number(value) || 0) * 100)}%`;
+
+const toFeedbackItems = (value) => {
+    if (!value || typeof value !== 'string') {
+        return [];
+    }
+
+    return value
+        .split('|')
+        .map((item) => item.trim())
+        .filter(Boolean);
+};
+
+const metricCards = (analysisResult) => {
+    const policyUpdate = analysisResult?.diagnostics?.policy_update || {};
+    const rallyState = analysisResult?.physics?.rally_state || {};
+
+    return [
+        {
+            label: 'Referee Confidence',
+            value: toPercentLabel(analysisResult?.physics?.referee_confidence),
+            icon: Gauge,
+            tone: 'cyan',
+        },
+        {
+            label: 'Landing Confidence',
+            value: toPercentLabel(rallyState?.landing_confidence),
+            icon: Shield,
+            tone: 'green',
+        },
+        {
+            label: 'Direction Consistency',
+            value: toPercentLabel(rallyState?.direction_consistency),
+            icon: Activity,
+            tone: 'amber',
+        },
+        {
+            label: 'Trajectory Quality',
+            value: toPercentLabel(analysisResult?.physics?.trajectory_quality),
+            icon: Radar,
+            tone: 'cyan',
+        },
+        {
+            label: 'Analysis Quality',
+            value: (analysisResult?.diagnostics?.analysis_quality || 'medium').toUpperCase(),
+            icon: BrainCircuit,
+            tone: 'amber',
+        },
+        {
+            label: 'Adaptation Level',
+            value: (policyUpdate?.adaptation_level || 'n/a').toUpperCase(),
+            icon: Sparkles,
+            tone: 'violet',
+        },
+    ];
+};
 
 const Arena = () => {
     const { addMatchRecord, debugMode } = useGame();
@@ -218,6 +305,13 @@ const Arena = () => {
         });
     };
 
+    const motionFeedbackItems = toFeedbackItems(analysisResult?.diagnostics?.motion_feedback);
+    const policyUpdate = analysisResult?.diagnostics?.policy_update || {};
+    const rewardComponents = policyUpdate?.reward_components || {};
+    const rallyState = analysisResult?.physics?.rally_state || {};
+    const courtContext = analysisResult?.physics?.court_context || rallyState?.court_context;
+    const hasTrajectorySignals = Boolean(courtContext) || rallyState?.landing_confidence !== undefined || rallyState?.direction_consistency !== undefined;
+
     return (
         <div className="arena-container">
             <AnimatePresence mode="wait">
@@ -367,18 +461,175 @@ const Arena = () => {
                                             <span>{analysisResult.physics.event}</span>
                                         </div>
                                     )}
-                                    {analysisResult.tactics?.map((tactic, index) => (
-                                        <div key={`${tactic.name}-${index}`} className="hud-tag-chip">
-                                            <Shield size={12} />
-                                            <span>{tactic.name}</span>
+                                    {courtContext && (
+                                        <div className="hud-tag-chip">
+                                            <Radar size={12} />
+                                            <span>{formatSignalLabel(courtContext)}</span>
                                         </div>
-                                    ))}
+                                    )}
                                     {analysisResult.physics?.max_speed_kmh > 200 && (
                                         <div className="hud-tag-chip highlight">
                                             <Zap size={12} />
                                             <span>Power Smash</span>
                                         </div>
                                     )}
+                                </div>
+                            )}
+
+                            {analysisResult?.summary && (
+                                <motion.section
+                                    className="hud-summary-panel"
+                                    initial={{ opacity: 0, y: 18 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                >
+                                    <div className="hud-summary-header">
+                                        <div>
+                                            <p className="hud-summary-kicker">RALLY SUMMARY</p>
+                                            <h2>{analysisResult.summary.headline}</h2>
+                                        </div>
+                                        <span className={`intel-confidence ${analysisResult.summary.confidence_label || 'medium'}`}>
+                                            {getConfidenceLabel(analysisResult.summary.confidence_label)}
+                                        </span>
+                                    </div>
+                                    <p className="hud-summary-copy">{analysisResult.summary.key_takeaway}</p>
+                                </motion.section>
+                            )}
+
+                            {analysisResult?.diagnostics && (
+                                <motion.section
+                                    className="hud-diagnostics-panel"
+                                    initial={{ opacity: 0, y: 18 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ delay: 0.05 }}
+                                >
+                                    <div className="hud-diagnostics-header">
+                                        <p className="hud-summary-kicker">DIAGNOSTICS</p>
+                                        <span>{(analysisResult.diagnostics.analysis_quality || 'medium').toUpperCase()} SIGNAL</span>
+                                    </div>
+
+                                    <div className="hud-metric-grid">
+                                        {metricCards(analysisResult).map((metric) => {
+                                            const Icon = metric.icon;
+                                            return (
+                                                <div key={metric.label} className={`hud-metric-card ${metric.tone}`}>
+                                                    <div className="hud-metric-icon"><Icon size={16} /></div>
+                                                    <span className="hud-metric-label">{metric.label}</span>
+                                                    <strong>{metric.value}</strong>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+
+                                    <div className="hud-notes-grid">
+                                        <div className="hud-note-card">
+                                            <strong><Siren size={14} /> Referee Reason</strong>
+                                            <p>{analysisResult.physics?.referee_reason || 'No referee explanation available.'}</p>
+                                        </div>
+
+                                        <div className="hud-note-card">
+                                            <strong><BrainCircuit size={14} /> Motion Feedback</strong>
+                                            {motionFeedbackItems.length > 0 ? (
+                                                <ul className="hud-note-list">
+                                                    {motionFeedbackItems.map((item, index) => (
+                                                        <li key={`${item}-${index}`}>{item}</li>
+                                                    ))}
+                                                </ul>
+                                            ) : (
+                                                <p>No motion feedback available.</p>
+                                            )}
+                                        </div>
+
+                                        {hasTrajectorySignals && (
+                                            <div className="hud-note-card">
+                                                <strong><Radar size={14} /> Trajectory Signals</strong>
+                                                <div className="hud-note-meta">
+                                                    {courtContext && <span>{formatSignalLabel(courtContext)}</span>}
+                                                    {rallyState?.landing_confidence !== undefined && (
+                                                        <span>Landing {toPercentLabel(rallyState.landing_confidence)}</span>
+                                                    )}
+                                                    {rallyState?.direction_consistency !== undefined && (
+                                                        <span>Direction {toPercentLabel(rallyState.direction_consistency)}</span>
+                                                    )}
+                                                </div>
+                                                <p>
+                                                    {analysisResult.physics?.description || 'Trajectory-level analysis is available for this rally.'}
+                                                </p>
+                                            </div>
+                                        )}
+
+                                        {policyUpdate?.policy_update_reason && (
+                                            <div className="hud-note-card emphasis">
+                                                <strong><Sparkles size={14} /> Policy Update</strong>
+                                                <p>{policyUpdate.policy_update_reason}</p>
+                                                <div className="hud-note-inline">
+                                                    {rewardComponents?.raw_reward !== undefined && <span>Reward {rewardComponents.raw_reward}</span>}
+                                                    {rewardComponents?.trajectory_quality !== undefined && (
+                                                        <span>Trajectory {toPercentLabel(rewardComponents.trajectory_quality)}</span>
+                                                    )}
+                                                    {rewardComponents?.referee_confidence !== undefined && (
+                                                        <span>Referee {toPercentLabel(rewardComponents.referee_confidence)}</span>
+                                                    )}
+                                                    {rewardComponents?.retrieval_confidence !== undefined && (
+                                                        <span>Retrieval {toPercentLabel(rewardComponents.retrieval_confidence)}</span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {analysisResult.diagnostics?.warnings?.length > 0 && (
+                                            <div className="hud-note-card warning">
+                                                <strong><CircleAlert size={14} /> Warnings</strong>
+                                                <ul>
+                                                    {analysisResult.diagnostics.warnings.map((warning, index) => (
+                                                        <li key={`${warning}-${index}`}>{warning}</li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
+                                    </div>
+                                </motion.section>
+                            )}
+
+                            {analysisResult?.tactics?.length > 0 && (
+                                <div className="hud-tactics-panel">
+                                    {analysisResult.tactics.map((tactic, index) => (
+                                        <motion.article
+                                            key={`${tactic.name}-${index}`}
+                                            className={`tactic-intel-card ${tactic.confidence_label || 'medium'}`}
+                                            initial={{ opacity: 0, y: 16 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            transition={{ delay: 0.08 * index }}
+                                        >
+                                            <div className="tactic-intel-header">
+                                                <div>
+                                                    <p className="tactic-intel-kicker">TACTIC OPTION {index + 1}</p>
+                                                    <h3>{tactic.name}</h3>
+                                                </div>
+                                                <span className={`intel-confidence ${tactic.confidence_label || 'medium'}`}>
+                                                    {getConfidenceLabel(tactic.confidence_label)}
+                                                </span>
+                                            </div>
+
+                                            <div className="tactic-intel-action">
+                                                <Sparkles size={14} />
+                                                <span>{tactic.recommended_action || tactic.content}</span>
+                                            </div>
+
+                                            {tactic.why_this_tactic && (
+                                                <div className="tactic-intel-copy">
+                                                    <strong>Why this tactic</strong>
+                                                    <p>{tactic.why_this_tactic}</p>
+                                                </div>
+                                            )}
+
+                                            {tactic.risk_note && (
+                                                <div className="tactic-intel-copy caution">
+                                                    <strong><TriangleAlert size={14} /> Risk note</strong>
+                                                    <p>{tactic.risk_note}</p>
+                                                </div>
+                                            )}
+                                        </motion.article>
+                                    ))}
                                 </div>
                             )}
 
@@ -416,3 +667,4 @@ const Arena = () => {
 };
 
 export default Arena;
+

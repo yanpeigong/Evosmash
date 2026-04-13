@@ -1,3 +1,5 @@
+﻿import json
+
 import openai
 
 from config import LLM_API_KEY, LLM_BASE_URL, LLM_MODEL_NAME
@@ -10,7 +12,7 @@ class CoachAgent:
             base_url=LLM_BASE_URL,
         )
 
-    def generate_advice(self, state, tactics):
+    def _format_tactics(self, tactics):
         if tactics:
             tactic_lines = []
             for index, tactic in enumerate(tactics, start=1):
@@ -24,9 +26,24 @@ class CoachAgent:
                     f"   Summary: {tactic.get('content', label)}\n"
                     f"   Score: {tactic['score']:.2f} | Expected win rate: {win_probability:.1f}%"
                 )
-            tactic_text = "\n".join(tactic_lines)
-        else:
-            tactic_text = "No tactic recommendations are available."
+            return "\n".join(tactic_lines)
+        return "No tactic recommendations are available."
+
+    def _fallback_payload(self, state, tactics):
+        top_tactic = tactics[0]["name"] if tactics else state.get("event", "the next pattern")
+        next_step = tactics[0].get("recommended_action", "Prepare for the next shot early.") if tactics else "Prepare for the next shot early."
+        confidence_label = tactics[0].get("confidence_label", "medium") if tactics else "medium"
+        return {
+            "text": "Stay balanced, recover fast, and prepare for the next contact.",
+            "headline": f"Play into {top_tactic}",
+            "focus": "Shot selection",
+            "next_step": next_step,
+            "confidence_label": confidence_label,
+            "source": "fallback",
+        }
+
+    def generate_structured_advice(self, state, tactics):
+        tactic_text = self._format_tactics(tactics)
 
         prompt = f"""
 You are a badminton AI coach powered by Bayesian learning.
@@ -38,10 +55,19 @@ Current rally state:
 Recommended tactics:
 {tactic_text}
 
-Write one short, direct coaching instruction in English.
-- Keep it under 24 words.
-- If the top tactic is exploratory, sound slightly cautious.
-- If confidence is strong, sound decisive.
+Return strict JSON with exactly these keys:
+- text
+- headline
+- focus
+- next_step
+- confidence_label
+
+Rules:
+- Keep `text` under 24 words.
+- Keep `headline` under 8 words.
+- `focus` should be a short training area such as "Recovery", "Defense", or "Shot selection".
+- `next_step` should be one short actionable instruction.
+- `confidence_label` must be one of: high, medium, low.
 """
 
         try:
@@ -49,8 +75,14 @@ Write one short, direct coaching instruction in English.
                 model=LLM_MODEL_NAME,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.7,
-                max_tokens=80,
+                max_tokens=120,
             )
-            return response.choices[0].message.content
+            content = response.choices[0].message.content
+            payload = json.loads(content)
+            payload["source"] = "llm"
+            return payload
         except Exception:
-            return "Stay balanced, recover fast, and prepare for the next contact."
+            return self._fallback_payload(state, tactics)
+
+    def generate_advice(self, state, tactics):
+        return self.generate_structured_advice(state, tactics).get("text", "Stay balanced, recover fast, and prepare for the next contact.")
