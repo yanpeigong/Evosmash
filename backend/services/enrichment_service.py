@@ -63,13 +63,13 @@ def enrich_tactics(state: Dict, tactics: List[Dict]) -> List[Dict]:
 
     for index, tactic in enumerate(tactics, start=1):
         expected_win_rate = float(tactic.get("expected_win_rate", 50.0))
-        score = float(tactic.get("score", 0.0))
+        ranking_score = float(tactic.get("rerank_score", tactic.get("score", 0.0)) or 0.0)
         context_score = float(tactic.get("context_score", 0.5))
         risk_penalty = float(tactic.get("risk_penalty", 0.0))
         metadata = tactic.get("metadata", {})
         name = tactic.get("name") or tactic.get("content") or f"Tactic {index}"
         recommended_action = _format_action_from_content(tactic.get("content", name))
-        confidence_label = _confidence_label(score, expected_win_rate, context_score, risk_penalty)
+        confidence_label = _confidence_label(ranking_score, expected_win_rate, context_score, risk_penalty)
         style_family = metadata.get("style_family", "balanced")
         risk_level = metadata.get("risk_level", "medium")
 
@@ -110,6 +110,16 @@ def enrich_tactics(state: Dict, tactics: List[Dict]) -> List[Dict]:
                 "fit_breakdown": tactic.get("fit_breakdown", {}),
                 "selection_profile": tactic.get("selection_profile", {}),
                 "scenario_summary": tactic.get("scenario_summary", {}),
+                "related_tactics": tactic.get("related_tactics", []),
+                "transition_family": tactic.get("transition_family", "isolated"),
+                "rerank_score": tactic.get("rerank_score", tactic.get("score", 0.0)),
+                "continuity_score": tactic.get("continuity_score", 0.0),
+                "coverage_score": tactic.get("coverage_score", 0.0),
+                "volatility_guard": tactic.get("volatility_guard", 0.0),
+                "novelty_bonus": tactic.get("novelty_bonus", 0.0),
+                "rank_reason": tactic.get("rank_reason", ""),
+                "frontier_hint": tactic.get("frontier_hint", ""),
+                "evolution_replay": tactic.get("evolution_replay", {}),
             }
         )
 
@@ -185,11 +195,15 @@ def build_diagnostics_payload(
     tracker_diagnostics: Dict = None,
     motion_profile: Dict = None,
     rally_quality: Dict = None,
+    confidence_report: Dict = None,
+    referee_audit: Dict = None,
 ) -> Dict:
     state = state or {}
     tracker_diagnostics = tracker_diagnostics or {}
     motion_profile = motion_profile or {}
     rally_quality = rally_quality or {}
+    confidence_report = confidence_report or {}
+    referee_audit = referee_audit or {}
 
     if warnings:
         analysis_quality = "degraded" if len(warnings) > 1 else "limited"
@@ -207,6 +221,7 @@ def build_diagnostics_payload(
         retrieval_summary = {
             "selected_tactic": top.get("name", "Unknown"),
             "score": round(float(top.get("score", 0.0)), 3),
+            "rerank_score": round(float(top.get("rerank_score", top.get("score", 0.0)) or 0.0), 3),
             "expected_win_rate": round(float(top.get("expected_win_rate", 50.0)), 2),
             "style_family": metadata.get("style_family", "balanced"),
             "phase_preference": metadata.get("phase_preference", "neutral"),
@@ -214,6 +229,10 @@ def build_diagnostics_payload(
             "risk_level": metadata.get("risk_level", "medium"),
             "fit_breakdown": top.get("fit_breakdown", {}),
             "scenario_summary": top.get("scenario_summary", {}),
+            "transition_family": top.get("transition_family", "isolated"),
+            "rank_reason": top.get("rank_reason", ""),
+            "frontier_hint": top.get("frontier_hint", ""),
+            "development_stage": (top.get("evolution_replay", {}) or {}).get("development_stage", "stabilize"),
         }
 
     combined_warnings = list(warnings)
@@ -235,6 +254,8 @@ def build_diagnostics_payload(
         "tracker_diagnostics": tracker_diagnostics,
         "motion_profile": motion_profile,
         "rally_quality": rally_quality,
+        "confidence_report": confidence_report,
+        "referee_audit": referee_audit,
     }
 
 
@@ -276,6 +297,8 @@ def make_empty_rally_response(match_type: str, warning: str) -> Dict:
         "tracker_diagnostics": {},
         "motion_profile": {},
         "rally_quality": {},
+        "confidence_report": {},
+        "referee_audit": {},
     }
     return {
         "physics": {
@@ -294,4 +317,5 @@ def make_empty_rally_response(match_type: str, warning: str) -> Dict:
         "auto_reward": 0.0,
         "summary": summary,
         "diagnostics": diagnostics,
+        "report": {},
     }

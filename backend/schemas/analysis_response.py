@@ -31,10 +31,21 @@ class TacticPayload(BaseModel):
     risk_penalty: float = 0.0
     stability_bonus: float = 0.0
     scenario_bias: float = 0.0
+    graph_bias: float = 0.0
+    rerank_score: float = 0.0
+    continuity_score: float = 0.0
+    coverage_score: float = 0.0
+    volatility_guard: float = 0.0
+    novelty_bonus: float = 0.0
+    rank_reason: str = ""
+    frontier_hint: str = ""
     scheduler_profile: Dict[str, Any] = Field(default_factory=dict)
+    related_tactics: List[Dict[str, Any]] = Field(default_factory=list)
+    transition_family: str = "isolated"
     fit_breakdown: Dict[str, Any] = Field(default_factory=dict)
     selection_profile: Dict[str, Any] = Field(default_factory=dict)
     scenario_summary: Dict[str, Any] = Field(default_factory=dict)
+    evolution_replay: Dict[str, Any] = Field(default_factory=dict)
     metadata: Dict[str, Any] = Field(default_factory=dict)
     debug_stats: str = ""
 
@@ -57,6 +68,8 @@ class DiagnosticsPayload(BaseModel):
     tracker_diagnostics: Dict[str, Any] = Field(default_factory=dict)
     motion_profile: Dict[str, Any] = Field(default_factory=dict)
     rally_quality: Dict[str, Any] = Field(default_factory=dict)
+    confidence_report: Dict[str, Any] = Field(default_factory=dict)
+    referee_audit: Dict[str, Any] = Field(default_factory=dict)
     policy_update: Dict[str, Any] = Field(default_factory=dict)
 
 
@@ -70,6 +83,7 @@ class RallyAnalysisResponse(BaseModel):
     auto_reward: float = 0.0
     summary: SummaryPayload
     diagnostics: DiagnosticsPayload
+    report: Dict[str, Any] = Field(default_factory=dict)
 
 
 class MatchTimelineItem(BaseModel):
@@ -82,6 +96,7 @@ class MatchTimelineItem(BaseModel):
     auto_reward: float = 0.0
     summary: SummaryPayload
     diagnostics: DiagnosticsPayload
+    report: Dict[str, Any] = Field(default_factory=dict)
 
 
 class MatchAnalysisResponse(BaseModel):
