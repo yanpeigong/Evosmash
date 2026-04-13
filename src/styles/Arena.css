@@ -1,0 +1,520 @@
+/* Arena Layout */
+.arena-container {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
+}
+
+/* --- Idle State Styles --- */
+.arena-idle {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 30px;
+    background: radial-gradient(circle at center, #1a1a1a 0%, #050505 100%);
+    padding: 24px;
+}
+
+.arena-header {
+    text-align: center;
+}
+
+.glitch-text {
+    font-size: 2.5rem;
+    letter-spacing: 2px;
+    margin: 0;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.text-primary {
+    color: var(--color-primary);
+}
+
+.text-warning {
+    color: var(--color-warning);
+}
+
+.subtitle {
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    letter-spacing: 2px;
+    text-align: center;
+}
+
+.mode-switch {
+    display: flex;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 20px;
+    padding: 4px;
+    border: 1px solid var(--border-color);
+}
+
+.mode-switch button {
+    padding: 8px 24px;
+    border-radius: 16px;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.mode-switch button.active {
+    background: var(--color-primary);
+    color: #000;
+    box-shadow: 0 0 10px var(--color-primary-dim);
+}
+
+.upload-trigger {
+    position: relative;
+    width: 160px;
+    height: 160px;
+    border-radius: 50%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+}
+
+.upload-trigger:active {
+    transform: scale(0.95);
+}
+
+.trigger-ring {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    border: 2px dashed var(--color-primary);
+    opacity: 0.5;
+    animation: rotate 10s linear infinite;
+}
+
+.trigger-icon {
+    background: var(--color-primary-dim);
+    border: 1px solid var(--color-primary);
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-primary);
+    box-shadow: 0 0 20px var(--color-primary-dim);
+    margin-bottom: 10px;
+}
+
+.trigger-text {
+    font-size: 0.75rem;
+    letter-spacing: 1px;
+    color: var(--text-primary);
+    text-align: center;
+}
+
+.capability-badges {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    background: rgba(255, 255, 255, 0.03);
+    padding: 6px 12px;
+    border-radius: 12px;
+}
+
+/* --- Analyzing State --- */
+.arena-analyzing {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #000;
+}
+
+.arena-analyzing p {
+    color: var(--text-secondary);
+    letter-spacing: 1px;
+    text-align: center;
+}
+
+.scanner {
+    width: 100%;
+    height: 2px;
+    background: var(--color-primary);
+    box-shadow: 0 0 10px var(--color-primary);
+    animation: scan 1.5s ease-in-out infinite;
+    margin-bottom: 20px;
+}
+
+/* --- HUD State --- */
+.arena-hud {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background: #000;
+}
+
+.hud-video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.hud-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    pointer-events: none;
+    /* Let clicks pass through if needed, but here we might want controls */
+}
+
+/* Top Bar */
+.hud-top-bar {
+    display: flex;
+    justify-content: space-between;
+    padding: 20px;
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.8), transparent);
+    pointer-events: auto;
+}
+
+.hud-stat {
+    display: flex;
+    flex-direction: column;
+}
+
+.hud-label {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+}
+
+.hud-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    font-family: monospace;
+}
+
+.hud-tags-bar {
+    display: flex;
+    gap: 10px;
+    padding: 0 20px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+    pointer-events: auto;
+}
+
+.hud-tag-chip {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(5px);
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    color: #eee;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.hud-tag-chip.highlight {
+    background: rgba(var(--color-primary-rgb), 0.2);
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+}
+
+.result-badge {
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-weight: 800;
+    font-size: 1.2rem;
+    cursor: pointer;
+}
+
+.result-badge.WIN {
+    background: var(--color-secondary);
+    color: #000;
+    box-shadow: 0 0 15px var(--color-secondary);
+}
+
+.result-badge.LOSS {
+    background: #333;
+    color: #aaa;
+}
+
+/* AR Layer */
+.hud-ar-layer {
+    flex: 1;
+    position: relative;
+}
+
+.ar-lines {
+    width: 100%;
+    height: 100%;
+    filter: drop-shadow(0 0 5px var(--color-secondary));
+}
+
+.trajectory-line {
+    fill: none;
+    stroke: var(--color-secondary);
+    stroke-width: 2;
+    stroke-dasharray: 10;
+    animation: dash 1s linear infinite;
+}
+
+.impact-point {
+    fill: var(--color-primary);
+}
+
+/* Coach Bubble */
+.hud-coach-bubble {
+    margin: 20px;
+    padding: 16px;
+    background: rgba(0, 20, 40, 0.8);
+    border: 1px solid var(--color-primary-dim);
+    backdrop-filter: blur(10px);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.avatar-circle {
+    width: 40px;
+    height: 40px;
+    background: var(--color-primary);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #000;
+    font-weight: bold;
+    font-size: 0.8rem;
+}
+
+.coach-text p {
+    font-size: 0.9rem;
+    margin: 0;
+    color: var(--text-primary);
+}
+
+.coach-text small {
+    display: block;
+    margin-top: 6px;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    line-height: 1.4;
+}
+
+/* Animations */
+@keyframes rotate {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes scan {
+    0% {
+        transform: translateY(-50vh);
+        opacity: 0;
+    }
+
+    50% {
+        opacity: 1;
+    }
+
+    100% {
+        transform: translateY(50vh);
+        opacity: 0;
+    }
+}
+
+@keyframes dash {
+    to {
+        stroke-dashoffset: -20;
+    }
+}
+
+.reward-animation {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 3rem;
+    font-weight: 900;
+    color: var(--color-secondary);
+    text-shadow: 0 0 20px var(--color-secondary);
+    animation: popup 1s ease forwards;
+}
+
+@keyframes popup {
+    0% {
+        transform: translate(-50%, -50%) scale(0);
+        opacity: 0;
+    }
+
+    50% {
+        transform: translate(-50%, -50%) scale(1.2);
+        opacity: 1;
+    }
+
+    100% {
+        transform: translate(-50%, -100%) scale(1);
+        opacity: 0;
+    }
+}
+
+.edit-hint {
+    font-size: 0.6rem;
+    color: #666;
+    text-align: center;
+    margin-top: 2px;
+}
+
+.speaker-icon {
+    font-size: 1.2rem;
+    opacity: 0.7;
+}
+
+.close-btn {
+    padding: 10px 20px;
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    border: 1px solid #444;
+    border-radius: 20px;
+    pointer-events: auto;
+}
+
+.hud-coach-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding-bottom: 100px;
+}
+
+.hud-actions {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    margin-top: 10px;
+}
+
+.hud-actions.solo {
+    position: absolute;
+    bottom: 30px;
+}
+
+/* Webcam Integration */
+.webcam-bg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    overflow: hidden;
+}
+
+.arena-header.overlay-mode {
+    text-shadow: 0 0 10px #000;
+    z-index: 10;
+}
+
+.input-toggle {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    z-index: 10;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.input-toggle button {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 20px;
+    border: 1px solid #444;
+    background: rgba(0, 0, 0, 0.6);
+    color: #ccc;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.input-toggle button.active {
+    background: var(--color-primary);
+    color: #000;
+    border-color: var(--color-primary);
+}
+
+.arena-idle {
+    /* ensure content sits on top */
+    z-index: 5;
+}
+
+.upload-trigger.recording .trigger-ring {
+    border-color: #ff3333;
+    animation: pulse-red 1s infinite;
+}
+
+.upload-trigger.recording .trigger-icon {
+    border-color: #ff3333;
+    background: rgba(255, 51, 51, 0.2);
+    color: #ff3333;
+}
+
+@keyframes pulse-red {
+    0% {
+        box-shadow: 0 0 0 0 rgba(255, 51, 51, 0.4);
+    }
+
+    70% {
+        box-shadow: 0 0 0 20px rgba(255, 51, 51, 0);
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 rgba(255, 51, 51, 0);
+    }
+}
+
+@media (max-width: 480px) {
+    .mode-switch button {
+        padding: 8px 18px;
+    }
+
+    .upload-trigger {
+        width: 148px;
+        height: 148px;
+    }
+
+    .badge {
+        font-size: 0.68rem;
+    }
+}

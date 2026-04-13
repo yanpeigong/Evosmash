@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EvoSmash AI Console</title>
+    <style>
+        :root {
+            --bg-color: #0F172A;
+            --card-bg: #1E293B;
+            --primary: #6366F1;
+            --accent-green: #10B981;
+            --accent-red: #EF4444;
+            --text-main: #F8FAFC;
+            --text-sub: #94A3B8;
+        }
+
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1200px;
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 20px;
+        }
+
+        /* 卡片通用样式 */
+        .card {
+            background-color: var(--card-bg);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        h1,
+        h2,
+        h3 {
+            margin-top: 0;
+        }
+
+        h1 {
+            font-size: 24px;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* 左侧控制区 */
+        .control-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--text-sub);
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .mode-selector {
+            display: flex;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            padding: 4px;
+        }
+
+        .mode-selector label {
+            flex: 1;
+            text-align: center;
+            padding: 10px;
+            cursor: pointer;
+            border-radius: 6px;
+            margin: 0;
+            transition: all 0.3s;
+        }
+
+        .mode-selector input[type="radio"] {
+            display: none;
+        }
+
+        .mode-selector input:checked+span {
+            background-color: var(--primary);
+            color: white;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .mode-selector span {
+            display: block;
+            padding: 8px;
+            border-radius: 6px;
+        }
+
+        .file-drop-area {
+            border: 2px dashed var(--text-sub);
+            border-radius: 12px;
+            padding: 40px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: 0.3s;
+            position: relative;
+        }
+
+        .file-drop-area:hover {
+            border-color: var(--primary);
+            background-color: rgba(99, 102, 241, 0.1);
+        }
+
+        .file-drop-area input {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .btn-analyze {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 16px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.2s;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn-analyze:hover {
+            filter: brightness(1.1);
+        }
+
+        .btn-analyze:disabled {
+            background-color: var(--text-sub);
+            cursor: not-allowed;
+        }
+
+        /* 右侧结果区 */
+        .result-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            opacity: 0.3;
+            /* 初始半透明 */
+            pointer-events: none;
+            transition: 0.5s;
+        }
+
+        .result-panel.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        /* 仪表盘 */
+        .hud-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 15px;
+        }
+
+        .metric-card {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 15px;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        .metric-val {
+            font-size: 24px;
+            font-weight: bold;
+            margin-top: 5px;
+        }
+
+        .metric-label {
+            color: var(--text-sub);
+            font-size: 12px;
+        }
+
+        /* 教练气泡 */
+        .coach-bubble {
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(15, 23, 42, 0.8));
+            border: 1px solid rgba(99, 102, 241, 0.5);
+            padding: 20px;
+            border-radius: 16px;
+        }
+
+        .coach-text {
+            font-size: 18px;
+            line-height: 1.5;
+            margin-bottom: 10px;
+        }
+
+        .coach-sub {
+            font-size: 12px;
+            color: var(--text-sub);
+            background: rgba(0, 0, 0, 0.3);
+            padding: 4px 8px;
+            border-radius: 4px;
+            display: inline-block;
+        }
+
+        /* 进化列表 */
+        .tactic-list {
+            margin-top: 10px;
+        }
+
+        .tactic-item {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            margin-bottom: 8px;
+            border-left: 4px solid transparent;
+        }
+
+        .tactic-item.selected {
+            border-left-color: var(--primary);
+            background: rgba(99, 102, 241, 0.1);
+        }
+
+        .win-rate-bar-bg {
+            width: 40px;
+            height: 40px;
+            position: relative;
+            margin-right: 15px;
+        }
+
+        /* 简单的环形进度条模拟 */
+        .win-rate-circle {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: 3px solid #334155;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: bold;
+            color: var(--primary);
+        }
+
+        .auto-ref-badge {
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-weight: bold;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .bg-win {
+            background: rgba(16, 185, 129, 0.2);
+            color: var(--accent-green);
+            border: 1px solid var(--accent-green);
+        }
+
+        .bg-loss {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--accent-red);
+            border: 1px solid var(--accent-red);
+        }
+
+        /* Loading 动画 */
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 3px solid #fff;
+            border-bottom-color: transparent;
+            border-radius: 50%;
+            animation: rotation 1s linear infinite;
+            display: none;
+        }
+
+        @keyframes rotation {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <!-- 左侧控制面板 -->
+        <div class="control-panel">
+            <div class="card">
+                <h1>🏸 EvoSmash <span
+                        style="font-size: 12px; background:var(--primary); padding:2px 6px; border-radius:4px; color:white;">WEB</span>
+                </h1>
+                <p style="color: var(--text-sub); font-size: 13px;">进化型羽毛球智能体控制台</p>
+
+                <div class="form-group">
+                    <label>1. 比赛模式</label>
+                    <div class="mode-selector">
+                        <label>
+                            <input type="radio" name="mode" value="singles" checked>
+                            <span>单打 Singles</span>
+                        </label>
+                        <label>
+                            <input type="radio" name="mode" value="doubles">
+                            <span>双打 Doubles</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>2. 视频输入</label>
+                    <div class="file-drop-area" id="dropArea">
+                        <input type="file" id="videoInput" accept="video/mp4,video/avi,video/mov">
+                        <span id="fileName">点击或拖拽上传视频</span>
+                    </div>
+                </div>
+
+                <button class="btn-analyze" onclick="analyzeRally()" id="analyzeBtn">
+                    <div class="spinner" id="spinner"></div>
+                    <span>开始全链路分析</span>
+                </button>
+            </div>
+
+            <div class="card" style="font-size: 12px; color: var(--text-sub);">
+                <h3>💻 调试信息</h3>
+                <p>Backend: http://127.0.0.1:8000</p>
+                <p>Status: <span id="statusText" style="color:var(--accent-green)">Ready</span></p>
+            </div>
+        </div>
+
+        <!-- 右侧结果面板 -->
+        <div class="result-panel" id="resultPanel">
+
+            <!-- 1. 物理 HUD -->
+            <div class="hud-row">
+                <div class="metric-card">
+                    <div class="metric-label">最大球速</div>
+                    <div class="metric-val" style="color:orange" id="resSpeed">--</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">识别事件</div>
+                    <div class="metric-val" style="color:#60A5FA" id="resEvent">--</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">自动判罚</div>
+                    <div class="metric-val" id="resAutoRef">--</div>
+                </div>
+            </div>
+
+            <!-- 2. AI 教练 -->
+            <div class="coach-bubble">
+                <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+                    <span style="font-size:20px;">🤖</span>
+                    <span style="font-weight:bold; color:var(--primary)">AI Coach Advice</span>
+                </div>
+                <div class="coach-text" id="resAdvice">
+                    正在等待数据输入...
+                </div>
+                <div class="coach-sub" id="resDesc">
+                    感知上下文: 无
+                </div>
+            </div>
+
+            <!-- 3. 自动进化结果 -->
+            <div class="card" id="evolutionCard" style="display:none;">
+                <div class="auto-ref-badge" id="autoRefBadge">
+                    <!-- 动态填充 -->
+                </div>
+            </div>
+
+            <!-- 4. RAG 详情 -->
+            <div class="card">
+                <h3>🧬 战术基因进化 (Beta Distribution)</h3>
+                <div class="tactic-list" id="tacticList">
+                    <!-- 动态填充 -->
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+    const BACKEND_URL = "http://127.0.0.1:8000";
+
+    // 文件选择显示
+    document.getElementById('videoInput').addEventListener('change', function(e) {
+        if(e.target.files[0]) {
+            document.getElementById('fileName').innerText = "✅ " + e.target.files[0].name;
+            document.getElementById('fileName').style.color = "var(--accent-green)";
+        }
+    });
+
+    async function analyzeRally() {
+        const fileInput = document.getElementById('videoInput');
+        const mode = document.querySelector('input[name="mode"]:checked').value;
+        
+        if (!fileInput.files[0]) {
+            alert("请先选择一个视频文件！");
+            return;
+        }
+
+        // UI 状态更新
+        setLoading(true);
+        
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+        formData.append('match_type', mode);
+
+        try {
+            const response = await fetch(`${BACKEND_URL}/analyze_rally`, {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) {
+                throw new Error(`Server Error: ${response.status}`);
+            }
+
+            const data = await response.json();
+            renderResults(data);
+
+        } catch (error) {
+            console.error(error);
+            alert("请求失败: " + error.message + "\n请检查后端是否运行且开启了CORS。");
+            document.getElementById('statusText').innerText = "Error";
+            document.getElementById('statusText').style.color = "var(--accent-red)";
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    function renderResults(data) {
+        // 激活右侧面板
+        const panel = document.getElementById('resultPanel');
+        panel.classList.add('active');
+        panel.style.opacity = '1';
+
+        // 1. 填充物理数据
+        document.getElementById('resSpeed').innerText = data.physics.max_speed_kmh + " km/h";
+        document.getElementById('resEvent').innerText = data.physics.event;
+        document.getElementById('resAutoRef').innerText = data.auto_result;
+        
+        // 2. 填充教练建议
+        document.getElementById('resAdvice').innerText = data.advice;
+        document.getElementById('resDesc').innerText = "感知: " + data.physics.description;
+
+        // 3. 填充自动进化状态
+        const evoCard = document.getElementById('evolutionCard');
+        const evoBadge = document.getElementById('autoRefBadge');
+        
+        if (data.auto_result !== 'UNKNOWN') {
+            evoCard.style.display = 'block';
+            const isWin = data.auto_result === 'WIN';
+            evoBadge.className = isWin ? 'auto-ref-badge bg-win' : 'auto-ref-badge bg-loss';
+            evoBadge.innerHTML = `
+                <span>${isWin ? '🏆' : '⚠️'}</span>
+                <span>自动裁判判定: ${data.auto_result}</span>
+                <span style="margin-left:10px; font-size:12px; opacity:0.8;">奖励值: ${data.auto_reward} (模型已更新)</span>
+            `;
+        } else {
+            evoCard.style.display = 'none';
+        }
+
+        // 4. 填充 RAG 列表
+        const listContainer = document.getElementById('tacticList');
+        listContainer.innerHTML = ''; // 清空
+        
+        data.tactics.forEach((t, index) => {
+            const meta = t.metadata;
+            const alpha = meta.alpha || 1.0;
+            const beta = meta.beta || 1.0;
+            const winRate = (alpha / (alpha + beta) * 100).toFixed(0);
+            const isSelected = data.session_id === (meta.tactic_id || meta.id);
+
+            const html = `
+                <div class="tactic-item ${isSelected ? 'selected' : ''}">
+                    <div class="win-rate-bar-bg">
+                        <div class="win-rate-circle" style="border-color:${winRate > 60 ? '#10B981' : '#F59E0B'}">
+                            ${winRate}%
+                        </div>
+                    </div>
+                    <div style="flex:1">
+                        <div style="font-size:14px; margin-bottom:4px;">${t.content}</div>
+                        <div style="font-size:10px; color:#94A3B8; font-family:monospace;">
+                            ID:${meta.tactic_id || meta.id} | α:${alpha.toFixed(1)} β:${beta.toFixed(1)} | Score:${t.score.toFixed(3)}
+                        </div>
+                    </div>
+                    ${isSelected ? '<span style="color:#6366F1">👈</span>' : ''}
+                </div>
+            `;
+            listContainer.innerHTML += html;
+        });
+    }
+
+    function setLoading(isLoading) {
+        const btn = document.getElementById('analyzeBtn');
+        const spinner = document.getElementById('spinner');
+        const status = document.getElementById('statusText');
+        
+        if (isLoading) {
+            btn.disabled = true;
+            spinner.style.display = 'block';
+            status.innerText = "Analyzing...";
+            status.style.color = "orange";
+        } else {
+            btn.disabled = false;
+            spinner.style.display = 'none';
+            status.innerText = "Success";
+            status.style.color = "var(--accent-green)";
+        }
+    }
+    </script>
+
+</body>
+
+</html>

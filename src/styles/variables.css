@@ -1,0 +1,41 @@
+:root {
+    /* Core Brand Colors - Neon / HUD Style */
+    --color-primary: #00f0ff;
+    --color-primary-rgb: 0, 240, 255;
+    /* Cyan / Electric Blue */
+    --color-primary-dim: rgba(0, 240, 255, 0.2);
+    --color-secondary: #0aff00;
+    /* Neon Green - for Success/Win */
+    --color-secondary-dim: rgba(10, 255, 0, 0.2);
+    --color-danger: #ff003c;
+    /* Red - for Error/Loss/Weakness */
+    --color-danger-dim: rgba(255, 0, 60, 0.2);
+    --color-warning: #ffcc00;
+    /* Yellow - for Warning/Training */
+
+    /* Backgrounds */
+    --bg-dark: #050505;
+    /* Deep Black */
+    --bg-panel: #0a0a0a;
+    --bg-card: #111111;
+
+    /* Text */
+    --text-primary: #ffffff;
+    --text-secondary: #aaaaaa;
+    --text-muted: #666666;
+
+    /* UI Elements */
+    --border-color: #333333;
+    --border-active: var(--color-primary);
+
+    /* Spacing */
+    --spacing-xs: 4px;
+    --spacing-sm: 8px;
+    --spacing-md: 16px;
+    --spacing-lg: 24px;
+    --spacing-xl: 32px;
+
+    /* Animations */
+    --transition-fast: 0.2s ease;
+    --transition-normal: 0.3s ease;
+}
