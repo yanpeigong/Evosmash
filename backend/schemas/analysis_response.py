@@ -70,6 +70,8 @@ class DiagnosticsPayload(BaseModel):
     rally_quality: Dict[str, Any] = Field(default_factory=dict)
     confidence_report: Dict[str, Any] = Field(default_factory=dict)
     referee_audit: Dict[str, Any] = Field(default_factory=dict)
+    sequence_context: Dict[str, Any] = Field(default_factory=dict)
+    duel_projection: Dict[str, Any] = Field(default_factory=dict)
     policy_update: Dict[str, Any] = Field(default_factory=dict)
 
 

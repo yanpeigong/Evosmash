@@ -4,11 +4,15 @@ from typing import Dict, List, Optional, Tuple
 
 import cv2
 
+from core.memory.sequence_memory import SequenceMemory
+from core.memory.tactic_catalog import TACTIC_SEEDS
+from core.memory.tactic_duel_simulator import TacticDuelSimulator
 from core.physics.referee_audit import RefereeAuditTrail
 from core.physics.uncertainty import ConfidenceCalibrator
 from core.utils.match_intelligence import MatchIntelligenceAnalyzer
 from core.utils.rally_quality import RallyQualityAnalyzer
 from core.utils.report_builder import ReportBuilder
+from core.utils.replay_storyline import ReplayStorylineBuilder
 from core.utils.training_prescriptor import TrainingPrescriptor
 from services.enrichment_service import (
     build_diagnostics_payload,
@@ -31,7 +35,10 @@ class AnalysisService:
         self.match_intelligence = MatchIntelligenceAnalyzer()
         self.confidence_calibrator = ConfidenceCalibrator()
         self.referee_audit = RefereeAuditTrail()
+        self.sequence_memory = SequenceMemory()
+        self.duel_simulator = TacticDuelSimulator(TACTIC_SEEDS)
         self.report_builder = ReportBuilder()
+        self.replay_storyline = ReplayStorylineBuilder()
         self.training_prescriptor = TrainingPrescriptor()
 
     def analyze_rally(self, filepath: str, match_type: str) -> Dict:
@@ -44,6 +51,7 @@ class AnalysisService:
             "retrieval": "pending",
             "coach": "pending",
         }
+        sequence_context = self.sequence_memory.build_context([], match_type=match_type)
 
         self._prepare_court(filepath, warnings, pipeline_status)
 
@@ -74,23 +82,13 @@ class AnalysisService:
         state["description"] += f" [Motion: {motion_feedback}]"
         auto_result = state.get("auto_result", "UNKNOWN")
         rally_quality = self.rally_quality.evaluate(state, tracker_diagnostics=tracker_diagnostics, motion_profile=motion_profile)
-        confidence_report = self.confidence_calibrator.calibrate(
-            state,
-            tracker_diagnostics=tracker_diagnostics,
-            motion_profile=motion_profile,
-            rally_quality=rally_quality,
-        )
-        referee_audit = self.referee_audit.audit(
-            state,
-            tracker_diagnostics=tracker_diagnostics,
-            motion_profile=motion_profile,
-            rally_quality=rally_quality,
-            confidence_report=confidence_report,
-        )
+        confidence_report = self.confidence_calibrator.calibrate(state, tracker_diagnostics=tracker_diagnostics, motion_profile=motion_profile, rally_quality=rally_quality)
+        referee_audit = self.referee_audit.audit(state, tracker_diagnostics=tracker_diagnostics, motion_profile=motion_profile, rally_quality=rally_quality, confidence_report=confidence_report)
         state["calibrated_confidence"] = confidence_report.get("calibrated_confidence", state.get("referee_confidence", 0.5))
         state["verdict_stability"] = referee_audit.get("verdict_stability", 0.5)
 
-        tactics = self._get_tactics(state, match_type, rally_quality, warnings, pipeline_status)
+        tactics = self._get_tactics(state, match_type, rally_quality, sequence_context, warnings, pipeline_status)
+        duel_projection = self.duel_simulator.simulate(tactics, state, sequence_context=sequence_context)
         advice = self._get_advice(state, tactics, warnings, pipeline_status)
 
         tactic_id = None
@@ -102,12 +100,7 @@ class AnalysisService:
         reward = 0.0
         if tactic_id and auto_result != "UNKNOWN":
             try:
-                reward = self.physics.calculate_reward(
-                    auto_result,
-                    trajectory_quality=state.get("trajectory_quality", 0.5),
-                    referee_confidence=state.get("referee_confidence", 0.5),
-                    pressure_index=state.get("pressure_index", 0.5),
-                )
+                reward = self.physics.calculate_reward(auto_result, trajectory_quality=state.get("trajectory_quality", 0.5), referee_confidence=state.get("referee_confidence", 0.5), pressure_index=state.get("pressure_index", 0.5))
                 retrieval_confidence = self._retrieval_confidence(tactics)
                 top_tactic = tactics[0] if tactics else {}
                 policy_update = self.rag.update_policy(
@@ -127,6 +120,7 @@ class AnalysisService:
                         "pressure_index": state.get("pressure_index", 0.5),
                         "rally_quality": rally_quality.get("overall_quality", 0.5),
                         "auto_result": auto_result,
+                        **sequence_context.get("retrieval_context", {}),
                     },
                 ) or {}
             except Exception as error:
@@ -145,6 +139,8 @@ class AnalysisService:
             rally_quality=rally_quality,
             confidence_report=confidence_report,
             referee_audit=referee_audit,
+            sequence_context=sequence_context,
+            duel_projection=duel_projection,
         )
         diagnostics["policy_update"] = policy_update
         training_plan = self.training_prescriptor.build_rally_plan(state, tactics, diagnostics)
@@ -172,12 +168,7 @@ class AnalysisService:
         except Exception as error:
             return {
                 "status": "failed",
-                "match_summary": {
-                    "total_rallies_found": 0,
-                    "valid_rallies_analyzed": 0,
-                    "intelligence": {},
-                    "report": {},
-                },
+                "match_summary": {"total_rallies_found": 0, "valid_rallies_analyzed": 0, "intelligence": {}, "report": {}},
                 "timeline": [],
                 "warnings": [f"Tracking failed: {error}"],
             }
@@ -197,6 +188,7 @@ class AnalysisService:
         for rally_index, rally_trajectory in enumerate(rally_segments, start=1):
             if len(rally_trajectory) < 3:
                 continue
+            sequence_context = self.sequence_memory.build_context(timeline, match_type=match_type)
             segment_summary = segment_summaries[rally_index - 1] if rally_index - 1 < len(segment_summaries) else {}
             timeline_item = self._analyze_rally_segment(
                 rally_index=rally_index,
@@ -204,19 +196,33 @@ class AnalysisService:
                 fps=fps,
                 match_type=match_type,
                 tracker_diagnostics=segment_summary,
+                sequence_context=sequence_context,
             )
             if timeline_item:
                 timeline.append(timeline_item)
 
-        intelligence = self.match_intelligence.summarize(timeline, match_type)
+        sequence_context = self.sequence_memory.build_context(timeline, match_type=match_type)
+        duel_summary = self.duel_simulator.summarize_matchup(timeline, sequence_context=sequence_context)
+        intelligence = self.match_intelligence.summarize(timeline, match_type, sequence_context=sequence_context, duel_summary=duel_summary)
+        replay_story = self.replay_storyline.build(timeline, intelligence, sequence_context=sequence_context, duel_summary=duel_summary)
         match_training_plan = self.training_prescriptor.build_match_plan(intelligence, timeline)
-        match_report = self.report_builder.build_match_report(intelligence, timeline, training_plan=match_training_plan)
+        match_report = self.report_builder.build_match_report(
+            intelligence,
+            timeline,
+            training_plan=match_training_plan,
+            sequence_context=sequence_context,
+            duel_summary=duel_summary,
+            replay_story=replay_story,
+        )
         return {
             "status": "success",
             "match_summary": {
                 "total_rallies_found": len(rally_segments),
                 "valid_rallies_analyzed": len(timeline),
                 "intelligence": intelligence,
+                "sequence_memory": sequence_context,
+                "duel_summary": duel_summary,
+                "replay_story": replay_story,
                 "report": match_report,
             },
             "timeline": timeline,
@@ -259,7 +265,7 @@ class AnalysisService:
             pipeline_status["pose"] = "fallback"
             return "Pose analysis unavailable.", {}
 
-    def _get_tactics(self, state: Dict, match_type: str, rally_quality: Dict, warnings: List[str], pipeline_status: Dict[str, str]) -> List[Dict]:
+    def _get_tactics(self, state: Dict, match_type: str, rally_quality: Dict, sequence_context: Dict, warnings: List[str], pipeline_status: Dict[str, str]) -> List[Dict]:
         try:
             query_text = f"[{match_type}] {state['description']}"
             retrieval_context = {
@@ -275,6 +281,7 @@ class AnalysisService:
                 "last_hitter": state.get("last_hitter", "UNKNOWN"),
                 "pressure_index": state.get("pressure_index", 0.5),
                 "rally_quality": rally_quality.get("overall_quality", 0.5),
+                **sequence_context.get("retrieval_context", {}),
             }
             tactics = self.rag.retrieve(query_text, context=retrieval_context)
             pipeline_status["retrieval"] = "ok" if tactics else "empty"
@@ -299,16 +306,11 @@ class AnalysisService:
 
         return BadmintonFSM(fps=fps, width=width, height=height)
 
-    def _analyze_rally_segment(self, rally_index: int, rally_trajectory: List[Tuple[int, int]], fps: float, match_type: str, tracker_diagnostics: Dict | None = None) -> Optional[Dict]:
+    def _analyze_rally_segment(self, rally_index: int, rally_trajectory: List[Tuple[int, int]], fps: float, match_type: str, tracker_diagnostics: Dict | None = None, sequence_context: Dict | None = None) -> Optional[Dict]:
         warnings: List[str] = []
-        pipeline_status = {
-            "tracking": "segment",
-            "pose": "not_available",
-            "physics": "pending",
-            "retrieval": "pending",
-            "coach": "pending",
-        }
+        pipeline_status = {"tracking": "segment", "pose": "not_available", "physics": "pending", "retrieval": "pending", "coach": "pending"}
         tracker_diagnostics = tracker_diagnostics or {}
+        sequence_context = sequence_context or self.sequence_memory.build_context([], match_type=match_type)
 
         try:
             state = self.physics.analyze_trajectory(rally_trajectory, fps, match_type)
@@ -320,29 +322,16 @@ class AnalysisService:
             return None
 
         motion_feedback = "Pose analysis is only computed for short rally clips."
-        motion_profile = {
-            "quality_label": "segment-only",
-            "readiness_score": 0.45,
-        }
+        motion_profile = {"quality_label": "segment-only", "readiness_score": 0.45}
         state["description"] += f" [Motion: {motion_feedback}]"
         auto_result = state.get("auto_result", "UNKNOWN")
         rally_quality = self.rally_quality.evaluate(state, tracker_diagnostics=tracker_diagnostics, motion_profile=motion_profile)
-        confidence_report = self.confidence_calibrator.calibrate(
-            state,
-            tracker_diagnostics=tracker_diagnostics,
-            motion_profile=motion_profile,
-            rally_quality=rally_quality,
-        )
-        referee_audit = self.referee_audit.audit(
-            state,
-            tracker_diagnostics=tracker_diagnostics,
-            motion_profile=motion_profile,
-            rally_quality=rally_quality,
-            confidence_report=confidence_report,
-        )
+        confidence_report = self.confidence_calibrator.calibrate(state, tracker_diagnostics=tracker_diagnostics, motion_profile=motion_profile, rally_quality=rally_quality)
+        referee_audit = self.referee_audit.audit(state, tracker_diagnostics=tracker_diagnostics, motion_profile=motion_profile, rally_quality=rally_quality, confidence_report=confidence_report)
         state["calibrated_confidence"] = confidence_report.get("calibrated_confidence", state.get("referee_confidence", 0.5))
         state["verdict_stability"] = referee_audit.get("verdict_stability", 0.5)
-        tactics = self._get_tactics(state, match_type, rally_quality, warnings, pipeline_status)
+        tactics = self._get_tactics(state, match_type, rally_quality, sequence_context, warnings, pipeline_status)
+        duel_projection = self.duel_simulator.simulate(tactics, state, sequence_context=sequence_context)
         advice = self._get_advice(state, tactics, warnings, pipeline_status)
 
         reward = 0.0
@@ -351,12 +340,7 @@ class AnalysisService:
             tactic_id = tactics[0].get("metadata", {}).get("tactic_id")
             if tactic_id and auto_result != "UNKNOWN":
                 try:
-                    reward = self.physics.calculate_reward(
-                        auto_result,
-                        trajectory_quality=state.get("trajectory_quality", 0.5),
-                        referee_confidence=state.get("referee_confidence", 0.5),
-                        pressure_index=state.get("pressure_index", 0.5),
-                    )
+                    reward = self.physics.calculate_reward(auto_result, trajectory_quality=state.get("trajectory_quality", 0.5), referee_confidence=state.get("referee_confidence", 0.5), pressure_index=state.get("pressure_index", 0.5))
                     retrieval_confidence = self._retrieval_confidence(tactics)
                     top_tactic = tactics[0]
                     policy_update = self.rag.update_policy(
@@ -376,6 +360,7 @@ class AnalysisService:
                             "pressure_index": state.get("pressure_index", 0.5),
                             "rally_quality": rally_quality.get("overall_quality", 0.5),
                             "auto_result": auto_result,
+                            **sequence_context.get("retrieval_context", {}),
                         },
                     ) or {}
                 except Exception as error:
@@ -394,6 +379,8 @@ class AnalysisService:
             rally_quality=rally_quality,
             confidence_report=confidence_report,
             referee_audit=referee_audit,
+            sequence_context=sequence_context,
+            duel_projection=duel_projection,
         )
         diagnostics["policy_update"] = policy_update
         training_plan = self.training_prescriptor.build_rally_plan(state, tactics, diagnostics)
@@ -424,17 +411,4 @@ class AnalysisService:
         coverage_score = float(tactics[0].get("coverage_score", 0.5) or 0.5)
         scheduler_profile = tactics[0].get("scheduler_profile", {}) or {}
         exploitation = float(scheduler_profile.get("exploitation_weight", 0.5) or 0.5)
-        return max(
-            0.35,
-            min(
-                0.2 * top_score
-                + 0.18 * rerank_score
-                + 0.14 * context_score
-                + 0.12 * continuity_score
-                + 0.1 * coverage_score
-                + 0.06 * min(scenario_bias * 10, 1.0)
-                + 0.06 * min(graph_bias * 10, 1.0)
-                + 0.14 * exploitation,
-                1.0,
-            ),
-        )
+        return max(0.35, min(0.2 * top_score + 0.18 * rerank_score + 0.14 * context_score + 0.12 * continuity_score + 0.1 * coverage_score + 0.06 * min(scenario_bias * 10, 1.0) + 0.06 * min(graph_bias * 10, 1.0) + 0.14 * exploitation, 1.0))

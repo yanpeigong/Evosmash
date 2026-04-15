@@ -10,6 +10,8 @@ class ReportBuilder:
         confidence_report = diagnostics.get("confidence_report", {})
         tracker_diagnostics = diagnostics.get("tracker_diagnostics", {})
         referee_audit = diagnostics.get("referee_audit", {})
+        sequence_context = diagnostics.get("sequence_context", {})
+        duel_projection = diagnostics.get("duel_projection", {})
         return {
             "headline": summary.get("headline", "Rally analyzed"),
             "verdict": summary.get("verdict", "UNKNOWN"),
@@ -27,6 +29,12 @@ class ReportBuilder:
                 "spike_count": tracker_diagnostics.get("spike_count", 0),
             },
             "referee_snapshot": referee_audit,
+            "sequence_snapshot": {
+                "memory_summary": sequence_context.get("memory_summary", ""),
+                "sequence_tags": sequence_context.get("sequence_tags", []),
+                "streak_context": sequence_context.get("streak_context", {}),
+            },
+            "duel_snapshot": duel_projection,
             "tactic_snapshot": {
                 "why_this_tactic": top_tactic.get("why_this_tactic", ""),
                 "risk_note": top_tactic.get("risk_note", ""),
@@ -38,11 +46,11 @@ class ReportBuilder:
             "coach_takeaway": summary.get("key_takeaway", "Focus on stable execution in the next exchange."),
         }
 
-    def build_match_report(self, intelligence: Dict, timeline: List[Dict], training_plan: Dict | None = None) -> Dict:
-        audit_levels = [
-            ((item.get("diagnostics", {}) or {}).get("referee_audit", {}) or {}).get("audit_level", "watch")
-            for item in timeline
-        ]
+    def build_match_report(self, intelligence: Dict, timeline: List[Dict], training_plan: Dict | None = None, sequence_context: Dict | None = None, duel_summary: Dict | None = None, replay_story: Dict | None = None) -> Dict:
+        sequence_context = sequence_context or {}
+        duel_summary = duel_summary or {}
+        replay_story = replay_story or {}
+        audit_levels = [((item.get("diagnostics", {}) or {}).get("referee_audit", {}) or {}).get("audit_level", "watch") for item in timeline]
         audit_distribution = Counter(audit_levels)
         return {
             "headline": self._headline(intelligence),
@@ -52,6 +60,9 @@ class ReportBuilder:
             "recommended_focus": intelligence.get("recommended_focus", []),
             "rally_count": len(timeline),
             "audit_distribution": dict(audit_distribution),
+            "sequence_memory": sequence_context,
+            "duel_summary": duel_summary,
+            "replay_story": replay_story,
             "training_plan": training_plan or {},
             "narrative": self._narrative(intelligence),
         }
@@ -69,7 +80,4 @@ class ReportBuilder:
         identity = intelligence.get("tactical_identity", "Adaptive")
         trend = intelligence.get("confidence_trend", "flat")
         focus = ", ".join(intelligence.get("recommended_focus", [])[:2]) or "maintain-balanced-decision-making"
-        return (
-            f"The match was shaped primarily by {dominant} patterns, with {identity} emerging as the most visible tactical identity. "
-            f"Confidence trend remained {trend}, and the next training focus should prioritize {focus}."
-        )
+        return f"The match was shaped primarily by {dominant} patterns, with {identity} emerging as the most visible tactical identity. Confidence trend remained {trend}, and the next training focus should prioritize {focus}."

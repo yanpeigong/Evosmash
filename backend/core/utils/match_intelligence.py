@@ -7,7 +7,9 @@ import numpy as np
 
 
 class MatchIntelligenceAnalyzer:
-    def summarize(self, timeline: List[Dict], match_type: str) -> Dict:
+    def summarize(self, timeline: List[Dict], match_type: str, sequence_context: Dict | None = None, duel_summary: Dict | None = None) -> Dict:
+        sequence_context = sequence_context or {}
+        duel_summary = duel_summary or {}
         if not timeline:
             return {
                 "match_type": match_type,
@@ -19,6 +21,8 @@ class MatchIntelligenceAnalyzer:
                 "event_distribution": {},
                 "tactic_distribution": {},
                 "recommended_focus": [],
+                "sequence_memory": sequence_context,
+                "duel_summary": duel_summary,
             }
 
         events = [item.get("physics", {}).get("event", "Unknown") for item in timeline]
@@ -52,6 +56,8 @@ class MatchIntelligenceAnalyzer:
             mean_pressure=pressure_profile["mean_pressure"],
             win_count=win_count,
             loss_count=loss_count,
+            sequence_context=sequence_context,
+            duel_summary=duel_summary,
         )
 
         return {
@@ -68,6 +74,9 @@ class MatchIntelligenceAnalyzer:
                 "wins": win_count,
                 "losses": loss_count,
             },
+            "sequence_memory": sequence_context,
+            "duel_summary": duel_summary,
+            "adaptation_score": round(float(sequence_context.get("adaptation_score", 0.0) or 0.0), 3),
         }
 
     def _momentum_state(self, results: List[str]) -> str:
@@ -89,7 +98,7 @@ class MatchIntelligenceAnalyzer:
         if len(values) < 2:
             return "flat"
         first_half = float(np.mean(values[: max(1, len(values) // 2)]))
-        second_half = float(np.mean(values[max(1, len(values) // 2):]))
+        second_half = float(np.mean(values[max(1, len(values) // 2) :]))
         diff = second_half - first_half
         if diff >= 0.08:
             return "rising"
@@ -105,6 +114,8 @@ class MatchIntelligenceAnalyzer:
         mean_pressure: float,
         win_count: int,
         loss_count: int,
+        sequence_context: Dict,
+        duel_summary: Dict,
     ) -> List[str]:
         focus = []
         if mean_pressure >= 0.62:
@@ -117,6 +128,10 @@ class MatchIntelligenceAnalyzer:
             focus.append("recover-rally-initiative")
         if momentum_state == "surging":
             focus.append("convert-advantage-more-efficiently")
+        if float(sequence_context.get("adaptation_score", 0.0) or 0.0) >= 0.62:
+            focus.append("consolidate-recent-adaptations")
+        if duel_summary.get("dominant_duel") and duel_summary.get("dominant_duel") != "unavailable":
+            focus.append("prepare-for-recurring-counter-duels")
         if not focus:
             focus.append("maintain-balanced-decision-making")
         return focus

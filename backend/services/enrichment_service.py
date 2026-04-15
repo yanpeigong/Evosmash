@@ -17,23 +17,9 @@ def _format_action_from_content(content: str) -> str:
     return sentence if sentence.endswith(".") else f"{sentence}."
 
 
-def _build_why_this_tactic(
-    name: str,
-    event_name: str,
-    speed: float,
-    expected_win_rate: float,
-    confidence_label: str,
-    rank: int,
-    attack_phase: str,
-    court_context: str,
-    style_family: str,
-) -> str:
+def _build_why_this_tactic(name: str, event_name: str, speed: float, expected_win_rate: float, confidence_label: str, rank: int, attack_phase: str, court_context: str, style_family: str) -> str:
     rank_context = "the clearest match" if rank == 1 else f"a strong supporting option at rank {rank}"
-    confidence_context = {
-        "high": "with strong historical support",
-        "medium": "with balanced confidence",
-        "low": "as an exploratory alternative",
-    }.get(confidence_label, "with balanced confidence")
+    confidence_context = {"high": "with strong historical support", "medium": "with balanced confidence", "low": "as an exploratory alternative"}.get(confidence_label, "with balanced confidence")
     return (
         f"{name} is {rank_context} for this {event_name} pattern at {speed:.1f} km/h, "
         f"fitting a {attack_phase} phase in {court_context} through a {style_family} response and projecting "
@@ -51,7 +37,6 @@ def _build_risk_note(event_name: str, speed: float, confidence_label: str, expec
     if expected_win_rate < 55:
         return "The tactical edge is modest, so execution quality matters more than the pattern itself."
     return "This choice is reliable, but it still depends on early preparation and clean footwork into the shot."
-
 
 
 def enrich_tactics(state: Dict, tactics: List[Dict]) -> List[Dict]:
@@ -74,29 +59,9 @@ def enrich_tactics(state: Dict, tactics: List[Dict]) -> List[Dict]:
         risk_level = metadata.get("risk_level", "medium")
 
         rank_hint = "top recommendation" if index == 1 else f"ranked option #{index}"
-        reason = (
-            f"{name} is the {rank_hint} because it fits a {event_name.lower()} scenario at "
-            f"{speed:.1f} km/h with {attack_phase} phase alignment and an expected win rate of {expected_win_rate:.1f}%."
-        )
-        why_this_tactic = _build_why_this_tactic(
-            name=name,
-            event_name=event_name.lower(),
-            speed=speed,
-            expected_win_rate=expected_win_rate,
-            confidence_label=confidence_label,
-            rank=index,
-            attack_phase=attack_phase.replace("_", " "),
-            court_context=court_context.replace("_", " "),
-            style_family=style_family.replace("-", " "),
-        )
-        risk_note = _build_risk_note(
-            event_name=event_name,
-            speed=speed,
-            confidence_label=confidence_label,
-            expected_win_rate=expected_win_rate,
-            risk_level=risk_level,
-            attack_phase=attack_phase,
-        )
+        reason = f"{name} is the {rank_hint} because it fits a {event_name.lower()} scenario at {speed:.1f} km/h with {attack_phase} phase alignment and an expected win rate of {expected_win_rate:.1f}%."
+        why_this_tactic = _build_why_this_tactic(name, event_name.lower(), speed, expected_win_rate, confidence_label, index, attack_phase.replace("_", " "), court_context.replace("_", " "), style_family.replace("-", " "))
+        risk_note = _build_risk_note(event_name, speed, confidence_label, expected_win_rate, risk_level, attack_phase)
 
         enriched.append(
             {
@@ -126,16 +91,13 @@ def enrich_tactics(state: Dict, tactics: List[Dict]) -> List[Dict]:
     return enriched
 
 
-
 def normalize_advice_payload(raw_advice, tactics: List[Dict], state: Dict) -> Dict:
     if isinstance(raw_advice, dict):
         text = raw_advice.get("text") or "Stay balanced and prepare early."
         headline = raw_advice.get("headline") or "Stay composed"
         focus = raw_advice.get("focus") or "Recovery"
         next_step = raw_advice.get("next_step") or "Prepare for the next shot."
-        confidence_label = raw_advice.get("confidence_label") or (
-            tactics[0].get("confidence_label", "medium") if tactics else "medium"
-        )
+        confidence_label = raw_advice.get("confidence_label") or (tactics[0].get("confidence_label", "medium") if tactics else "medium")
         source = raw_advice.get("source") or "llm"
     else:
         text = str(raw_advice or "Stay balanced and prepare early.")
@@ -156,7 +118,6 @@ def normalize_advice_payload(raw_advice, tactics: List[Dict], state: Dict) -> Di
     }
 
 
-
 def build_summary_payload(state: Dict, advice: Dict, tactics: List[Dict], auto_result: str) -> Dict:
     top_tactic = tactics[0]["name"] if tactics else "Neutral reset"
     confidence_label = advice.get("confidence_label", tactics[0].get("confidence_label", "medium") if tactics else "medium")
@@ -171,39 +132,19 @@ def build_summary_payload(state: Dict, advice: Dict, tactics: List[Dict], auto_r
     else:
         headline = "Rally pattern captured"
 
-    key_takeaway = (
-        f"Primary tactical direction: {top_tactic}. "
-        f"Current phase reads as {attack_phase} with a {shot_shape} shot pattern, so focus on {advice.get('focus', 'shot selection').lower()} next."
-    )
-
-    return {
-        "headline": headline,
-        "verdict": verdict,
-        "confidence_label": confidence_label,
-        "key_takeaway": key_takeaway,
-    }
+    key_takeaway = f"Primary tactical direction: {top_tactic}. Current phase reads as {attack_phase} with a {shot_shape} shot pattern, so focus on {advice.get('focus', 'shot selection').lower()} next."
+    return {"headline": headline, "verdict": verdict, "confidence_label": confidence_label, "key_takeaway": key_takeaway}
 
 
-
-def build_diagnostics_payload(
-    warnings: List[str],
-    pipeline_status: Dict[str, str],
-    motion_feedback: str,
-    trajectory_points: int,
-    tactics: List[Dict],
-    state: Dict = None,
-    tracker_diagnostics: Dict = None,
-    motion_profile: Dict = None,
-    rally_quality: Dict = None,
-    confidence_report: Dict = None,
-    referee_audit: Dict = None,
-) -> Dict:
+def build_diagnostics_payload(warnings: List[str], pipeline_status: Dict[str, str], motion_feedback: str, trajectory_points: int, tactics: List[Dict], state: Dict = None, tracker_diagnostics: Dict = None, motion_profile: Dict = None, rally_quality: Dict = None, confidence_report: Dict = None, referee_audit: Dict = None, sequence_context: Dict = None, duel_projection: Dict = None) -> Dict:
     state = state or {}
     tracker_diagnostics = tracker_diagnostics or {}
     motion_profile = motion_profile or {}
     rally_quality = rally_quality or {}
     confidence_report = confidence_report or {}
     referee_audit = referee_audit or {}
+    sequence_context = sequence_context or {}
+    duel_projection = duel_projection or {}
 
     if warnings:
         analysis_quality = "degraded" if len(warnings) > 1 else "limited"
@@ -256,8 +197,9 @@ def build_diagnostics_payload(
         "rally_quality": rally_quality,
         "confidence_report": confidence_report,
         "referee_audit": referee_audit,
+        "sequence_context": sequence_context,
+        "duel_projection": duel_projection,
     }
-
 
 
 def make_empty_rally_response(match_type: str, warning: str) -> Dict:
@@ -277,38 +219,22 @@ def make_empty_rally_response(match_type: str, warning: str) -> Dict:
     }
     diagnostics = {
         "warnings": [warning],
-        "pipeline": {
-            "tracking": "failed",
-            "pose": "skipped",
-            "physics": "skipped",
-            "retrieval": "skipped",
-            "coach": "fallback",
-        },
+        "pipeline": {"tracking": "failed", "pose": "skipped", "physics": "skipped", "retrieval": "skipped", "coach": "fallback"},
         "motion_feedback": "Unavailable",
         "trajectory_points": 0,
         "analysis_quality": "degraded",
         "retrieval_summary": {},
-        "physics_profile": {
-            "attack_phase": "neutral",
-            "tempo_profile": "medium",
-            "shot_shape": "balanced-rally",
-            "pressure_index": 0.0,
-        },
+        "physics_profile": {"attack_phase": "neutral", "tempo_profile": "medium", "shot_shape": "balanced-rally", "pressure_index": 0.0},
         "tracker_diagnostics": {},
         "motion_profile": {},
         "rally_quality": {},
         "confidence_report": {},
         "referee_audit": {},
+        "sequence_context": {},
+        "duel_projection": {},
     }
     return {
-        "physics": {
-            "event": "Unknown",
-            "max_speed_kmh": 0.0,
-            "description": "Analysis could not be completed for this clip.",
-            "coordinates": [],
-            "auto_result": "UNKNOWN",
-            "match_type": match_type,
-        },
+        "physics": {"event": "Unknown", "max_speed_kmh": 0.0, "description": "Analysis could not be completed for this clip.", "coordinates": [], "auto_result": "UNKNOWN", "match_type": match_type},
         "advice": advice,
         "tactics": [],
         "session_id": None,
