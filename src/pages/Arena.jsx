@@ -1,4 +1,4 @@
-﻿import React, {
+import React, {
     useCallback, useEffect, useRef, useState,
 } from 'react';
 import {
@@ -15,6 +15,12 @@ import {
     Radar,
     Siren,
     CircleAlert,
+    Route,
+    ScrollText,
+    Swords,
+    GitBranch,
+    Flag,
+    Target,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Webcam from 'react-webcam';
@@ -31,6 +37,12 @@ const getConfidenceLabel = (label) => {
     return 'Balanced';
 };
 
+const getRiskLabel = (label) => {
+    if (label === 'high') return 'High Duel Risk';
+    if (label === 'medium') return 'Watch Duel';
+    return 'Stable Duel';
+};
+
 const formatSignalLabel = (value) => {
     if (!value) {
         return 'Unknown';
@@ -45,6 +57,12 @@ const formatSignalLabel = (value) => {
 
 const toPercentLabel = (value) => `${Math.round((Number(value) || 0) * 100)}%`;
 
+const toSignedPercentLabel = (value) => {
+    const numericValue = Number(value) || 0;
+    const prefix = numericValue > 0 ? '+' : '';
+    return `${prefix}${Math.round(numericValue * 100)}%`;
+};
+
 const toFeedbackItems = (value) => {
     if (!value || typeof value !== 'string') {
         return [];
@@ -55,6 +73,8 @@ const toFeedbackItems = (value) => {
         .map((item) => item.trim())
         .filter(Boolean);
 };
+
+const toArray = (value) => (Array.isArray(value) ? value : []);
 
 const metricCards = (analysisResult) => {
     const policyUpdate = analysisResult?.diagnostics?.policy_update || {};
@@ -305,12 +325,40 @@ const Arena = () => {
         });
     };
 
-    const motionFeedbackItems = toFeedbackItems(analysisResult?.diagnostics?.motion_feedback);
-    const policyUpdate = analysisResult?.diagnostics?.policy_update || {};
+    const diagnostics = analysisResult?.diagnostics || {};
+    const report = analysisResult?.report || {};
+    const replayStory = analysisResult?.replay_story || {};
+    const motionFeedbackItems = toFeedbackItems(diagnostics?.motion_feedback);
+    const policyUpdate = diagnostics?.policy_update || {};
     const rewardComponents = policyUpdate?.reward_components || {};
     const rallyState = analysisResult?.physics?.rally_state || {};
     const courtContext = analysisResult?.physics?.court_context || rallyState?.court_context;
     const hasTrajectorySignals = Boolean(courtContext) || rallyState?.landing_confidence !== undefined || rallyState?.direction_consistency !== undefined;
+
+    const sequenceContext = diagnostics?.sequence_context || {};
+    const duelProjection = diagnostics?.duel_projection || report?.duel_snapshot || {};
+    const trainingPlan = report?.training_plan || {};
+
+    const sequenceTactics = toArray(sequenceContext?.recent_tactics);
+    const sequenceTransitions = toArray(sequenceContext?.tactic_transitions);
+    const sequenceSignals = [
+        ...toArray(sequenceContext?.adaptation_signals),
+        ...toArray(sequenceContext?.player_adjustment_signals),
+    ];
+    const sequenceTags = toArray(sequenceContext?.sequence_tags);
+
+    const counterTactics = toArray(duelProjection?.counter_tactics);
+    const exchangeScript = toArray(duelProjection?.exchange_script);
+
+    const storyCards = toArray(replayStory?.storyline_cards);
+    const turningPoints = toArray(replayStory?.turning_points);
+    const adaptationCycles = toArray(replayStory?.adaptation_cycles);
+    const criticalRallies = toArray(replayStory?.critical_rallies);
+    const trainingBlocks = toArray(trainingPlan?.blocks);
+
+    const hasSequencePanel = Boolean(sequenceContext?.has_content);
+    const hasDuelPanel = Boolean(duelProjection?.has_content);
+    const hasReplayPanel = Boolean(replayStory?.has_content);
 
     return (
         <div className="arena-container">
@@ -473,6 +521,12 @@ const Arena = () => {
                                             <span>Power Smash</span>
                                         </div>
                                     )}
+                                    {sequenceTags.slice(0, 2).map((tag) => (
+                                        <div key={tag} className="hud-tag-chip accent">
+                                            <GitBranch size={12} />
+                                            <span>{formatSignalLabel(tag)}</span>
+                                        </div>
+                                    ))}
                                 </div>
                             )}
 
@@ -590,6 +644,155 @@ const Arena = () => {
                                 </motion.section>
                             )}
 
+                            {(hasSequencePanel || hasDuelPanel) && (
+                                <section className="hud-intelligence-grid">
+                                    {hasSequencePanel && (
+                                        <motion.article
+                                            className="hud-intel-panel sequence-panel"
+                                            initial={{ opacity: 0, y: 18 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            transition={{ delay: 0.08 }}
+                                        >
+                                            <div className="hud-intel-header-row">
+                                                <div>
+                                                    <p className="hud-summary-kicker">SEQUENCE MEMORY</p>
+                                                    <h3>Multi-Rally Tactical Drift</h3>
+                                                </div>
+                                                <span className="intel-badge neutral">
+                                                    <Route size={12} />
+                                                    {toPercentLabel(sequenceContext?.adaptation_score)}
+                                                </span>
+                                            </div>
+
+                                            <p className="hud-intel-copy">
+                                                {sequenceContext?.memory_summary || 'No multi-rally memory was generated for this clip.'}
+                                            </p>
+
+                                            {sequenceTags.length > 0 && (
+                                                <div className="hud-chip-row">
+                                                    {sequenceTags.map((tag) => (
+                                                        <span key={tag} className="hud-chip">
+                                                            {formatSignalLabel(tag)}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            )}
+
+                                            <div className="hud-sequence-stats">
+                                                <div className="hud-mini-stat">
+                                                    <span>Streak</span>
+                                                    <strong>{formatSignalLabel(sequenceContext?.streak_context?.state)}</strong>
+                                                </div>
+                                                <div className="hud-mini-stat">
+                                                    <span>Pressure Swing</span>
+                                                    <strong>{formatSignalLabel(sequenceContext?.pressure_swing?.label)}</strong>
+                                                    <small>{toSignedPercentLabel(sequenceContext?.pressure_swing?.delta)}</small>
+                                                </div>
+                                                <div className="hud-mini-stat">
+                                                    <span>Preferred Family</span>
+                                                    <strong>{formatSignalLabel(sequenceContext?.preferred_style_family)}</strong>
+                                                </div>
+                                            </div>
+
+                                            {sequenceTactics.length > 0 && (
+                                                <div className="memory-lane">
+                                                    {sequenceTactics.map((snapshot, index) => (
+                                                        <div key={`${snapshot.name}-${index}`} className="memory-rally-card">
+                                                            <span className="memory-rally-index">R{snapshot.rally_index}</span>
+                                                            <strong>{snapshot.name}</strong>
+                                                            <small>{formatSignalLabel(snapshot.style_family)}</small>
+                                                            <span>{toPercentLabel(snapshot.score)}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+
+                                            {sequenceTransitions.length > 0 && (
+                                                <div className="transition-rail">
+                                                    {sequenceTransitions.map((transition, index) => (
+                                                        <div key={`${transition.from}-${transition.to}-${index}`} className="transition-item">
+                                                            <div className="transition-route">
+                                                                <span>{transition.from}</span>
+                                                                <GitBranch size={14} />
+                                                                <span>{transition.to}</span>
+                                                            </div>
+                                                            <small>{formatSignalLabel(transition.style_shift)}</small>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+
+                                            {sequenceSignals.length > 0 && (
+                                                <ul className="intel-signal-list">
+                                                    {sequenceSignals.map((signal, index) => (
+                                                        <li key={`${signal}-${index}`}>{signal}</li>
+                                                    ))}
+                                                </ul>
+                                            )}
+                                        </motion.article>
+                                    )}
+
+                                    {hasDuelPanel && (
+                                        <motion.article
+                                            className="hud-intel-panel duel-panel"
+                                            initial={{ opacity: 0, y: 18 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            transition={{ delay: 0.1 }}
+                                        >
+                                            <div className="hud-intel-header-row">
+                                                <div>
+                                                    <p className="hud-summary-kicker">TACTICAL DUEL</p>
+                                                    <h3>{duelProjection?.primary_plan || 'Neutral reset'}</h3>
+                                                </div>
+                                                <span className={`intel-badge ${duelProjection?.duel_risk_label || 'low'}`}>
+                                                    <Swords size={12} />
+                                                    {getRiskLabel(duelProjection?.duel_risk_label)}
+                                                </span>
+                                            </div>
+
+                                            <p className="hud-intel-copy">
+                                                {duelProjection?.duel_explanation || duelProjection?.likely_response || 'No duel projection is available for this clip.'}
+                                            </p>
+
+                                            <div className="hud-chip-row">
+                                                <span className="hud-chip emphasis">{formatSignalLabel(duelProjection?.counter_window)}</span>
+                                                <span className="hud-chip">{toPercentLabel(duelProjection?.duel_risk)}</span>
+                                            </div>
+
+                                            {exchangeScript.length > 0 && (
+                                                <ol className="exchange-script">
+                                                    {exchangeScript.map((step, index) => (
+                                                        <li key={`${step}-${index}`}>{step}</li>
+                                                    ))}
+                                                </ol>
+                                            )}
+
+                                            {counterTactics.length > 0 && (
+                                                <div className="duel-counter-grid">
+                                                    {counterTactics.map((counter, index) => (
+                                                        <div key={`${counter.name}-${index}`} className="duel-counter-card">
+                                                            <div className="duel-counter-topline">
+                                                                <strong>{counter.name}</strong>
+                                                                <span>{toPercentLabel(counter.fit_score)}</span>
+                                                            </div>
+                                                            <small>{formatSignalLabel(counter.family)}</small>
+                                                            <p>{counter.reason}</p>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+
+                                            {duelProjection?.pressure_gate && (
+                                                <div className="duel-pressure-gate">
+                                                    <TriangleAlert size={14} />
+                                                    <span>{duelProjection.pressure_gate}</span>
+                                                </div>
+                                            )}
+                                        </motion.article>
+                                    )}
+                                </section>
+                            )}
+
                             {analysisResult?.tactics?.length > 0 && (
                                 <div className="hud-tactics-panel">
                                     {analysisResult.tactics.map((tactic, index) => (
@@ -615,10 +818,47 @@ const Arena = () => {
                                                 <span>{tactic.recommended_action || tactic.content}</span>
                                             </div>
 
+                                            <div className="tactic-intel-metrics">
+                                                <span>Rerank {toPercentLabel(tactic.rerank_score)}</span>
+                                                <span>Continuity {toPercentLabel(tactic.continuity_score)}</span>
+                                                <span>Coverage {toPercentLabel(tactic.coverage_score)}</span>
+                                            </div>
+
                                             {tactic.why_this_tactic && (
                                                 <div className="tactic-intel-copy">
                                                     <strong>Why this tactic</strong>
                                                     <p>{tactic.why_this_tactic}</p>
+                                                </div>
+                                            )}
+
+                                            {tactic.rank_reason && (
+                                                <div className="tactic-intel-copy subdued">
+                                                    <strong><Target size={14} /> Selection logic</strong>
+                                                    <p>{tactic.rank_reason}</p>
+                                                </div>
+                                            )}
+
+                                            {tactic.frontier_hint && (
+                                                <div className="tactic-intel-copy subdued">
+                                                    <strong><GitBranch size={14} /> Frontier hint</strong>
+                                                    <p>{tactic.frontier_hint}</p>
+                                                </div>
+                                            )}
+
+                                            {tactic.evolution_replay?.development_stage && (
+                                                <div className="tactic-evolution-panel">
+                                                    <div className="tactic-evolution-header">
+                                                        <strong><Route size={14} /> Evolution replay</strong>
+                                                        <span>{formatSignalLabel(tactic.evolution_replay.development_stage)}</span>
+                                                    </div>
+                                                    <p>{tactic.evolution_replay.why_now}</p>
+                                                    {toArray(tactic.evolution_replay.upgrade_path).length > 0 && (
+                                                        <ul className="tactic-evolution-steps">
+                                                            {toArray(tactic.evolution_replay.upgrade_path).map((step, stepIndex) => (
+                                                                <li key={`${step}-${stepIndex}`}>{step}</li>
+                                                            ))}
+                                                        </ul>
+                                                    )}
                                                 </div>
                                             )}
 
@@ -633,8 +873,126 @@ const Arena = () => {
                                 </div>
                             )}
 
+                            {hasReplayPanel && (
+                                <motion.section
+                                    className="hud-replay-panel"
+                                    initial={{ opacity: 0, y: 18 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ delay: 0.16 }}
+                                >
+                                    <div className="hud-replay-header">
+                                        <div>
+                                            <p className="hud-summary-kicker">REPLAY STORY</p>
+                                            <h3>{replayStory?.opening_phase?.headline || 'Replay storyboard'}</h3>
+                                        </div>
+                                        <span className="intel-badge neutral">
+                                            <ScrollText size={12} />
+                                            Storyline
+                                        </span>
+                                    </div>
+
+                                    <p className="hud-intel-copy">
+                                        {replayStory?.replay_summary || 'No replay story is available for this clip.'}
+                                    </p>
+
+                                    {storyCards.length > 0 && (
+                                        <div className="storyline-grid">
+                                            {storyCards.map((card, index) => (
+                                                <div key={`${card.title}-${index}`} className={`storyline-card ${card.stage || 'neutral'}`}>
+                                                    <span className="storyline-stage">{formatSignalLabel(card.stage || 'stage')}</span>
+                                                    <strong>{card.title}</strong>
+                                                    <p>{card.body}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    <div className="replay-columns">
+                                        {turningPoints.length > 0 && (
+                                            <div className="replay-column">
+                                                <div className="replay-column-header">
+                                                    <Flag size={14} />
+                                                    <strong>Turning points</strong>
+                                                </div>
+                                                <div className="replay-list">
+                                                    {turningPoints.map((turn, index) => (
+                                                        <div key={`${turn.rally_index}-${index}`} className="replay-list-item">
+                                                            <span>R{turn.rally_index}</span>
+                                                            <div>
+                                                                <strong>{turn.summary || 'Rally shift'}</strong>
+                                                                <p>{turn.trigger}</p>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {adaptationCycles.length > 0 && (
+                                            <div className="replay-column">
+                                                <div className="replay-column-header">
+                                                    <GitBranch size={14} />
+                                                    <strong>Adaptation cycles</strong>
+                                                </div>
+                                                <div className="replay-list">
+                                                    {adaptationCycles.map((cycle, index) => (
+                                                        <div key={`${cycle.from}-${cycle.to}-${index}`} className="replay-list-item">
+                                                            <span>{index + 1}</span>
+                                                            <div>
+                                                                <strong>{cycle.from} -> {cycle.to}</strong>
+                                                                <p>{cycle.summary}</p>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {criticalRallies.length > 0 && (
+                                            <div className="replay-column">
+                                                <div className="replay-column-header">
+                                                    <Target size={14} />
+                                                    <strong>Critical rallies</strong>
+                                                </div>
+                                                <div className="replay-critical-grid">
+                                                    {criticalRallies.map((critical) => (
+                                                        <div key={critical.rally_index} className="critical-rally-card">
+                                                            <span>R{critical.rally_index}</span>
+                                                            <strong>{critical.headline}</strong>
+                                                            <p>{critical.takeaway}</p>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {replayStory?.closing_state?.summary && (
+                                        <div className="closing-state-card">
+                                            <div className="replay-column-header">
+                                                <Flag size={14} />
+                                                <strong>Closing state</strong>
+                                            </div>
+                                            <p>{replayStory.closing_state.summary}</p>
+                                        </div>
+                                    )}
+                                </motion.section>
+                            )}
+
                             {analysisResult?.advice && (
                                 <div className="hud-coach-section">
+                                    {trainingBlocks.length > 0 && (
+                                        <div className="hud-training-strip">
+                                            {trainingBlocks.map((block, index) => (
+                                                <div key={`${block.label}-${index}`} className="hud-training-block">
+                                                    <span>{block.label}</span>
+                                                    <strong>{block.duration_min} min</strong>
+                                                    <small>{block.goal}</small>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+
                                     <motion.div
                                         className="hud-coach-bubble"
                                         initial={{ y: 50, opacity: 0 }}
@@ -643,7 +1001,7 @@ const Arena = () => {
                                         <div className="avatar-circle">AI</div>
                                         <div className="coach-text">
                                             <p>{analysisResult.advice.text}</p>
-                                            <small>{analysisResult.physics?.description}</small>
+                                            <small>{report?.coach_takeaway || analysisResult.physics?.description}</small>
                                         </div>
                                     </motion.div>
 
@@ -667,4 +1025,3 @@ const Arena = () => {
 };
 
 export default Arena;
-
