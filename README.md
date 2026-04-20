@@ -123,8 +123,6 @@
 
 ---
 
----
-
 ## Interface Preview
 
 <table align="center">
