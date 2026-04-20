@@ -24,6 +24,10 @@
 - **2026-02-10**：🎉 Congratulations！EvoSmash 成功进入 **全国大学生创新大赛华东区域赛复赛** 🚀
 - **2026-04-20**：🎉 Congratulations！EvoSmash 更进一步，成功进入 **全国复赛** 🏆
 
+<p align="center">
+  <sub>Every round of progress matters. Every milestone makes the project more alive. ✨</sub>
+</p>
+
 ---
 
 ## Project Snapshot
@@ -46,12 +50,6 @@
 
 <p align="center">
   <sub>从真实赛场出发，让速度、判断、对抗与调整，都能被转译成更可理解的智能反馈。</sub>
-</p>
-
----
-
-<p align="center">
-  <sub>Every round of progress matters. Every milestone makes the project more alive. ✨</sub>
 </p>
 
 ---
