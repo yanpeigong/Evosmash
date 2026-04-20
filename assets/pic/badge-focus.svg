@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="220" height="28" viewBox="0 0 220 28" role="img" aria-label="Focus Sports AI Reasoning">
+  <rect width="220" height="28" rx="8" fill="#111827"/>
+  <rect x="1" y="1" width="218" height="26" rx="7" fill="#161f32" stroke="#273449"/>
+  <circle cx="16" cy="14" r="4" fill="#f59e0b"/>
+  <text x="30" y="18" fill="#fff7e6" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="700">Focus</text>
+  <text x="71" y="18" fill="#fcd34d" font-family="Segoe UI, Arial, sans-serif" font-size="12">Sports AI Reasoning</text>
+</svg>

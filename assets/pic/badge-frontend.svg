@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="190" height="28" viewBox="0 0 190 28" role="img" aria-label="Frontend React + Vite">
+  <rect width="190" height="28" rx="8" fill="#0f172a"/>
+  <rect x="1" y="1" width="188" height="26" rx="7" fill="#111827" stroke="#1f2937"/>
+  <circle cx="16" cy="14" r="4" fill="#38bdf8"/>
+  <text x="30" y="18" fill="#e5f3ff" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="700">Frontend</text>
+  <text x="96" y="18" fill="#93c5fd" font-family="Segoe UI, Arial, sans-serif" font-size="12">React + Vite</text>
+</svg>
