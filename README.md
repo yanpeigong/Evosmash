@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/pic/logo.png" alt="EvoSmash Logo" width="132" />
+<img src="assets/pic/logo.png" alt="EvoSmash Logo" width="250" />
 
 ### AI-Driven Badminton Analysis & Tactical Evolution Platform
 
