@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="260" viewBox="0 0 1600 260" role="img" aria-label="EvoSmash premium centered banner logo">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#090c11" />
+      <stop offset="100%" stop-color="#121a24" />
+    </linearGradient>
+    <linearGradient id="panel" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#0d141d" />
+      <stop offset="100%" stop-color="#101926" />
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#4fdcff" />
+      <stop offset="100%" stop-color="#7cf6ff" />
+    </linearGradient>
+    <filter id="softGlow" x="-25%" y="-25%" width="150%" height="150%">
+      <feGaussianBlur stdDeviation="4" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect width="1600" height="260" rx="40" fill="url(#bg)" />
+  <rect x="10" y="10" width="1580" height="240" rx="34" fill="url(#panel)" stroke="#1b2431" stroke-width="1.5" />
+  <rect x="26" y="26" width="1548" height="208" rx="26" fill="none" stroke="#111b27" stroke-width="1" />
+
+  <g opacity="0.34">
+    <path d="M96 192 C194 146, 286 116, 396 98" fill="none" stroke="#213141" stroke-width="12" stroke-linecap="round" />
+    <path d="M106 192 C214 140, 314 108, 428 90" fill="none" stroke="url(#accent)" stroke-width="4.4" stroke-linecap="round" filter="url(#softGlow)" />
+  </g>
+
+  <g transform="translate(252 118) rotate(-14)" opacity="0.96">
+    <ellipse cx="0" cy="0" rx="15" ry="10.5" fill="#fbfdff" />
+    <path d="M-4 7 L-25 35" stroke="#fbfdff" stroke-width="4.9" stroke-linecap="round" />
+    <path d="M2 8 L-9 44" stroke="#e2edff" stroke-width="4.1" stroke-linecap="round" />
+    <path d="M8 5 L12 41" stroke="#d0def2" stroke-width="3.4" stroke-linecap="round" />
+    <path d="M-13 14 L-30 35" stroke="#d3def0" stroke-width="2" stroke-linecap="round" />
+    <path d="M-6 16 L-14 44" stroke="#d3def0" stroke-width="2" stroke-linecap="round" />
+    <path d="M3 13 L6 40" stroke="#d3def0" stroke-width="2" stroke-linecap="round" />
+  </g>
+
+  <g opacity="0.22">
+    <path d="M1228 74 H1418" stroke="#253243" stroke-width="2" />
+    <path d="M1270 92 H1444" stroke="#22303f" stroke-width="2" />
+    <path d="M1202 164 H1440" stroke="#1d2836" stroke-width="2" />
+    <path d="M1166 182 H1386" stroke="#18212d" stroke-width="2" />
+    <circle cx="1460" cy="74" r="3.5" fill="#63e9ff" />
+    <circle cx="1460" cy="92" r="3.5" fill="#63e9ff" />
+    <circle cx="1418" cy="164" r="3" fill="#395d73" />
+    <circle cx="1386" cy="182" r="3" fill="#2c4658" />
+  </g>
+
+  <g opacity="0.16">
+    <path d="M170 72 H328" stroke="#21303e" stroke-width="2" />
+    <path d="M184 88 H304" stroke="#1d2a38" stroke-width="2" />
+    <circle cx="344" cy="72" r="3.2" fill="#5ee9ff" />
+    <circle cx="320" cy="88" r="3.2" fill="#36586f" />
+  </g>
+
+  <g transform="translate(800 64)">
+    <text x="-10" y="72" text-anchor="end" fill="#ffffff" font-family="Segoe UI, Arial, sans-serif" font-size="90" font-weight="800" letter-spacing="1.4">EVO</text>
+    <text x="10" y="72" text-anchor="start" fill="url(#accent)" font-family="Segoe UI, Arial, sans-serif" font-size="90" font-weight="800" letter-spacing="1.4" filter="url(#softGlow)">SMASH</text>
+    <path d="M-446 104 H446" stroke="#202a36" stroke-width="1.7" opacity="0.88" />
+    <path d="M-446 104 H-260" stroke="url(#accent)" stroke-width="2.2" opacity="0.9" />
+    <path d="M260 104 H446" stroke="url(#accent)" stroke-width="2.2" opacity="0.9" />
+    <circle cx="-260" cy="104" r="4" fill="#5fe9ff" />
+    <circle cx="260" cy="104" r="4" fill="#5fe9ff" />
+
+    <text x="72" y="132" text-anchor="middle" fill="#b7c8d8" font-family="Segoe UI, Arial, sans-serif" font-size="26.5" font-weight="700" letter-spacing="3.2">BADMINTON AI COACH</text>
+  </g>
+
+  <g transform="translate(532 230)" opacity="0.78">
+    <rect x="0" y="-18" width="680" height="28" rx="14" fill="#0c131c" stroke="#1b2733" stroke-width="1" />
+    <path d="M24 -4 H148" stroke="#243746" stroke-width="1.6" />
+    <path d="M192 -4 H318" stroke="#243746" stroke-width="1.6" />
+    <path d="M362 -4 H488" stroke="#243746" stroke-width="1.6" />
+    <path d="M532 -4 H656" stroke="#243746" stroke-width="1.6" />
+    <circle cx="170" cy="-4" r="3.1" fill="#5ee9ff" />
+    <circle cx="340" cy="-4" r="3.1" fill="#5ee9ff" />
+    <circle cx="510" cy="-4" r="3.1" fill="#5ee9ff" />
+    <text x="86" y="1.5" text-anchor="middle" fill="#8ba3b7" font-family="Segoe UI, Arial, sans-serif" font-size="11.2" letter-spacing="1.4">TRACKING</text>
+    <text x="256" y="1.5" text-anchor="middle" fill="#8ba3b7" font-family="Segoe UI, Arial, sans-serif" font-size="11.2" letter-spacing="1.4">REASONING</text>
+    <text x="426" y="1.5" text-anchor="middle" fill="#8ba3b7" font-family="Segoe UI, Arial, sans-serif" font-size="11.2" letter-spacing="1.4">TACTICS</text>
+    <text x="594" y="1.5" text-anchor="middle" fill="#8ba3b7" font-family="Segoe UI, Arial, sans-serif" font-size="11.2" letter-spacing="1.4">COACHING</text>
+  </g>
+</svg>

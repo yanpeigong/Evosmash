@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/pic/logo.png" alt="EvoSmash Logo" width="250" />
+<img src="assets/pic/logo-banner.svg" alt="EvoSmash Banner Logo" width="780" />
 
 ### AI-Driven Badminton Analysis & Tactical Evolution Platform
 
@@ -12,7 +12,7 @@
   <img src="assets/pic/badge-focus.svg" alt="Focus Badge" />
 </p>
 
-</div>
+</div> 
 
 > 真正决定胜负的，往往不是某一次击球本身，而是它前后那些未被看见的选择。  
 > EvoSmash 试图记录这些转瞬即逝的瞬间，把经验从直觉变成可以被理解、被解释、也可以继续进化的认知。
