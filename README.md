@@ -124,7 +124,6 @@
 
 - 将回合分析组织成更易浏览的 `replay story`
 - 展示 turning points、adaptation cycles、critical rallies 与 closing state
-- 更适合竞赛演示、评审理解与后续报告沉淀
 
 ### 4. Human-Centered Explainability
 
