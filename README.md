@@ -148,7 +148,7 @@
 
 ---
 
-## Tech Stack
+<!-- ## Tech Stack
 
 ### Frontend
 
@@ -167,9 +167,9 @@
 - OpenCV
 - Ultralytics YOLO
 - ChromaDB
-- OpenAI-compatible API
+- OpenAI-compatible API -->
 
-### Core Directions
+<!-- ### Core Directions
 
 - Shuttle trajectory tracking
 - Pose analysis and motion feedback
@@ -178,7 +178,7 @@
 - Tactical retrieval and Bayesian evolution
 - LLM-generated coaching advice
 
----
+--- -->
 
 ## Quick Start
 
