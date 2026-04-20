@@ -19,6 +19,13 @@
 
 ---
 
+## Milestones
+
+- **2026-02-10**：🎉 Congratulations！EvoSmash 成功进入 **全国大学生创新大赛华东区域赛复赛** 🚀
+- **2026-04-20**：🎉 Congratulations！EvoSmash 更进一步，成功进入 **全国复赛** 🏆
+
+---
+
 ## Project Snapshot
 
 **EvoSmash** 是一个面向羽毛球训练与比赛分析场景的多模态智能系统。  
@@ -42,14 +49,6 @@
 </p>
 
 ---
-
-## Milestones
-
-**Congratulations! 🎉🏸**  
-EvoSmash 正在一步一步走向更大的舞台，而下面这些节点，也正是这个项目值得被认真记录的时刻。
-
-- **2026-02-10**：EvoSmash 成功进入 **全国大学生创新大赛华东区域赛复赛** 🚀
-- **2026-04-20**：EvoSmash 更进一步，成功进入 **全国复赛** 🏆
 
 <p align="center">
   <sub>Every round of progress matters. Every milestone makes the project more alive. ✨</sub>
