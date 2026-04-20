@@ -123,6 +123,33 @@
 
 ---
 
+---
+
+## Interface Preview
+
+<table align="center">
+  <tr>
+    <td align="center" width="25%">
+      <img src="assets/pic/ui演示1.png" alt="Arena HUD Preview 1" width="100%" />
+    </td>
+    <td align="center" width="25%">
+      <img src="assets/pic/ui演示2.png" alt="Arena HUD Preview 2" width="100%" />
+    </td>
+    <td align="center" width="25%">
+      <img src="assets/pic/ui演示3.png" alt="Arena HUD Preview 3" width="100%" />
+    </td>
+    <td align="center" width="25%">
+      <img src="assets/pic/ui演示4.png" alt="Arena HUD Preview 4" width="100%" />
+    </td>
+  </tr>
+</table>
+
+<p align="center">
+  <sub>实时 HUD 结果页、多回合记忆、战术对抗推演、可回放分析报告与 AI 教练反馈。</sub>
+</p>
+
+---
+
 ## Tech Stack
 
 ### Frontend
@@ -265,33 +292,6 @@ EvoSmash/
 │  └─ pic/
 └─ README.md
 ```
-
----
-
-## Interface Preview
-
-<table align="center">
-  <tr>
-    <td align="center" width="25%">
-      <img src="assets/pic/ui演示1.png" alt="Arena HUD Preview 1" width="100%" />
-    </td>
-    <td align="center" width="25%">
-      <img src="assets/pic/ui演示2.png" alt="Arena HUD Preview 2" width="100%" />
-    </td>
-    <td align="center" width="25%">
-      <img src="assets/pic/ui演示3.png" alt="Arena HUD Preview 3" width="100%" />
-    </td>
-    <td align="center" width="25%">
-      <img src="assets/pic/ui演示4.png" alt="Arena HUD Preview 4" width="100%" />
-    </td>
-  </tr>
-</table>
-
-<p align="center">
-  <sub>实时 HUD 结果页、多回合记忆、战术对抗推演、可回放分析报告与 AI 教练反馈。</sub>
-</p>
-
----
 
 ## Demo Notes
 
