@@ -21,8 +21,8 @@
 
 ## Milestones
 
-- **2026-02-10**：🎉 Congratulations！EvoSmash 成功进入 **全国大学生创新大赛华东区域赛复赛** 🚀
-- **2026-04-20**：🎉 Congratulations！EvoSmash 更进一步，成功进入 **全国复赛** 🏆
+- **2026-02-10**：🎉 Congratulations！EvoSmash 成功进入 **[全国大学生创新大赛华东区域赛复赛](https://mp.weixin.qq.com/s/a9V7zMQrNaWmitfzfeiZVQ)** 🚀
+- **2026-04-20**：🎉 Congratulations！EvoSmash 更进一步，成功进入 **[全国复赛](https://mp.weixin.qq.com/s/h6ggng0PPaO2icyPuNPayg)** 🏆
 
 <p align="center">
   <sub>Every round of progress matters. Every milestone makes the project more alive. ✨</sub>
