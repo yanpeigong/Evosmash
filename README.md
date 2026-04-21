@@ -1,3 +1,5 @@
+[中文](./README.md) | [English](./README.en.md)
+
 <div align="center">
 
 <img src="assets/pic/logo-banner.svg" alt="EvoSmash Banner Logo" width="780" />
