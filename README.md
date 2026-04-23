@@ -17,7 +17,7 @@
 </div>
 
 <div align="center">
-  <img src="assets/pic/poster.svg" alt="EvoSmash Poster" width="96%" />
+  <img src="assets/pic/poster.png" alt="EvoSmash Poster" width="96%" />
 </div>
 
 <p align="center">
