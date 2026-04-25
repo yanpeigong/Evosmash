@@ -1,5 +1,6 @@
 ﻿from __future__ import annotations
 
+from collections import Counter
 from typing import Dict, List, Optional, Tuple
 
 import cv2
@@ -201,11 +202,15 @@ class AnalysisService:
             if timeline_item:
                 timeline.append(timeline_item)
 
+        if not timeline:
+            warnings.append("No valid rally segments were strong enough for full tactical analysis.")
+
         sequence_context = self.sequence_memory.build_context(timeline, match_type=match_type)
         duel_summary = self.duel_simulator.summarize_matchup(timeline, sequence_context=sequence_context)
         intelligence = self.match_intelligence.summarize(timeline, match_type, sequence_context=sequence_context, duel_summary=duel_summary)
         replay_story = self.replay_storyline.build(timeline, intelligence, sequence_context=sequence_context, duel_summary=duel_summary)
         match_training_plan = self.training_prescriptor.build_match_plan(intelligence, timeline)
+        match_metrics = self._build_match_metrics(timeline)
         match_report = self.report_builder.build_match_report(
             intelligence,
             timeline,
@@ -219,6 +224,7 @@ class AnalysisService:
             "match_summary": {
                 "total_rallies_found": len(rally_segments),
                 "valid_rallies_analyzed": len(timeline),
+                "metrics": match_metrics,
                 "intelligence": intelligence,
                 "sequence_memory": sequence_context,
                 "duel_summary": duel_summary,
@@ -412,3 +418,54 @@ class AnalysisService:
         scheduler_profile = tactics[0].get("scheduler_profile", {}) or {}
         exploitation = float(scheduler_profile.get("exploitation_weight", 0.5) or 0.5)
         return max(0.35, min(0.2 * top_score + 0.18 * rerank_score + 0.14 * context_score + 0.12 * continuity_score + 0.1 * coverage_score + 0.06 * min(scenario_bias * 10, 1.0) + 0.06 * min(graph_bias * 10, 1.0) + 0.14 * exploitation, 1.0))
+
+    def _build_match_metrics(self, timeline: List[Dict]) -> Dict:
+        if not timeline:
+            return {
+                "result_distribution": {},
+                "average_rally_duration_sec": 0.0,
+                "average_max_speed_kmh": 0.0,
+                "peak_speed_kmh": 0.0,
+                "average_pressure_index": 0.0,
+                "average_confidence": 0.0,
+                "top_focuses": [],
+                "top_tactics": [],
+                "analysis_quality_distribution": {},
+            }
+
+        result_distribution = Counter(item.get("auto_result", "UNKNOWN") for item in timeline)
+        analysis_quality_distribution = Counter(
+            ((item.get("diagnostics", {}) or {}).get("analysis_quality", "unknown"))
+            for item in timeline
+        )
+        focus_distribution = Counter(
+            ((item.get("advice", {}) or {}).get("focus", "Recovery"))
+            for item in timeline
+        )
+        tactic_distribution = Counter(
+            (((item.get("tactics", []) or [{}])[0]).get("name", "Neutral reset"))
+            for item in timeline
+        )
+
+        durations = [float(item.get("duration_sec", 0.0) or 0.0) for item in timeline]
+        speeds = [float((item.get("physics", {}) or {}).get("max_speed_kmh", 0.0) or 0.0) for item in timeline]
+        pressures = [float((item.get("physics", {}) or {}).get("pressure_index", 0.0) or 0.0) for item in timeline]
+        confidences = [
+            float((((item.get("diagnostics", {}) or {}).get("confidence_report", {}) or {}).get("calibrated_confidence", 0.0) or 0.0))
+            for item in timeline
+        ]
+
+        def _average(values: List[float]) -> float:
+            return round(sum(values) / len(values), 3) if values else 0.0
+
+        return {
+            "result_distribution": dict(result_distribution),
+            "average_rally_duration_sec": _average(durations),
+            "average_max_speed_kmh": _average(speeds),
+            "peak_speed_kmh": round(max(speeds), 3) if speeds else 0.0,
+            "average_pressure_index": _average(pressures),
+            "average_confidence": _average(confidences),
+            "top_focuses": [{"focus": focus, "count": count} for focus, count in focus_distribution.most_common(3)],
+            "top_tactics": [{"name": name, "count": count} for name, count in tactic_distribution.most_common(3)],
+            "analysis_quality_distribution": dict(analysis_quality_distribution),
+        }
