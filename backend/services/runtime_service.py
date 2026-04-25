@@ -88,6 +88,70 @@ class BackendRuntime:
     def is_ready_for_analysis(self) -> bool:
         return self.analysis_service is not None
 
+    def critical_failures(self) -> list[str]:
+        return [
+            name
+            for name, payload in self.component_status.items()
+            if payload.get("critical") and payload.get("status") == "failed"
+        ]
+
+    def readiness_score(self) -> float:
+        if not self.component_status:
+            return 0.0
+
+        score = 0.0
+        total_weight = 0.0
+        for payload in self.component_status.values():
+            status = payload.get("status", "unknown")
+            critical = bool(payload.get("critical", False))
+            weight = 1.7 if critical else 1.0
+            total_weight += weight
+            if status == "ready":
+                score += weight
+            elif status == "fallback":
+                score += weight * 0.55
+            elif status == "failed":
+                score += 0.0
+            else:
+                score += weight * 0.2
+
+        return round(score / total_weight, 3) if total_weight else 0.0
+
+    def healthy_components(self) -> list[str]:
+        return [
+            name
+            for name, payload in self.component_status.items()
+            if payload.get("status") == "ready"
+        ]
+
+    def degraded_components(self) -> list[str]:
+        return [
+            name
+            for name, payload in self.component_status.items()
+            if payload.get("status") in {"fallback", "failed"}
+        ]
+
+    def component_matrix(self) -> list[Dict[str, Any]]:
+        matrix = []
+        for name, payload in self.component_status.items():
+            status = payload.get("status", "unknown")
+            critical = bool(payload.get("critical", False))
+            readiness_score = 1.0 if status == "ready" else 0.55 if status == "fallback" else 0.0
+            matrix.append(
+                {
+                    "name": name,
+                    "status": status,
+                    "critical": critical,
+                    "class_name": payload.get("class_name"),
+                    "readiness_score": round(readiness_score, 3),
+                    "tags": [
+                        "critical" if critical else "optional",
+                        "operational" if status == "ready" else "degraded",
+                    ],
+                }
+            )
+        return matrix
+
     def overall_status(self) -> str:
         statuses = {item.get("status", "unknown") for item in self.component_status.values()}
         if self.analysis_service is None or "failed" in statuses:
@@ -100,14 +164,38 @@ class BackendRuntime:
         ready_components = sum(1 for item in self.component_status.values() if item.get("status") == "ready")
         fallback_components = sum(1 for item in self.component_status.values() if item.get("status") == "fallback")
         failed_components = sum(1 for item in self.component_status.values() if item.get("status") == "failed")
+        readiness_score = self.readiness_score()
+        healthy_components = self.healthy_components()
+        degraded_components = self.degraded_components()
         return {
             "status": self.overall_status(),
             "analysis_ready": self.is_ready_for_analysis(),
-            "components": self.component_status,
+            "components": {
+                name: {
+                    **payload,
+                    "readiness_score": 1.0 if payload.get("status") == "ready" else 0.55 if payload.get("status") == "fallback" else 0.0,
+                    "tags": [
+                        "critical" if payload.get("critical") else "optional",
+                        "operational" if payload.get("status") == "ready" else "degraded",
+                    ],
+                }
+                for name, payload in self.component_status.items()
+            },
             "summary": {
                 "ready": ready_components,
                 "fallback": fallback_components,
                 "failed": failed_components,
+                "readiness_score": readiness_score,
+                "critical_failures": self.critical_failures(),
+            },
+            "insights": {
+                "component_order": list(self.component_status.keys()),
+                "healthy_components": healthy_components,
+                "degraded_components": degraded_components,
+                "critical_components": [
+                    name for name, payload in self.component_status.items() if payload.get("critical")
+                ],
+                "component_matrix": self.component_matrix(),
             },
         }
 

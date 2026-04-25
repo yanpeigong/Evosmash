@@ -2,7 +2,7 @@ import os
 import shutil
 import time
 import uuid
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 import uvicorn
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
@@ -20,7 +20,14 @@ from config import (
 )
 from core.utils.logging_utils import configure_logging, log_event
 from schemas.analysis_response import MatchAnalysisResponse, RallyAnalysisResponse
-from services import bootstrap_runtime
+from schemas.system_status import DemoCatalogPayload, SystemStatusPayload, TelemetrySnapshotPayload
+from services import (
+    TelemetryService,
+    bootstrap_runtime,
+    build_demo_catalog,
+    build_demo_match_payload,
+    build_demo_rally_payload,
+)
 
 logger = configure_logging(LOG_LEVEL)
 
@@ -31,6 +38,13 @@ def build_starting_status() -> Dict[str, Any]:
         "analysis_ready": False,
         "components": {},
         "summary": {"ready": 0, "fallback": 0, "failed": 0},
+        "insights": {
+            "component_order": [],
+            "healthy_components": [],
+            "degraded_components": [],
+            "critical_components": [],
+            "component_matrix": [],
+        },
     }
 
 
@@ -42,6 +56,10 @@ def get_runtime_status(runtime) -> Dict[str, Any]:
 
 def get_runtime(request: Request):
     return getattr(request.app.state, "runtime", None)
+
+
+def get_telemetry(request: Request):
+    return getattr(request.app.state, "telemetry", None)
 
 
 def validate_match_type(match_type: str) -> str:
@@ -99,6 +117,16 @@ def _save_upload_to_temp(file: UploadFile, prefix: str = "") -> str:
 
 
 def _log_analysis_request(request: Request, endpoint: str, file: UploadFile, match_type: str) -> None:
+    size_bytes = _uploaded_file_size(file)
+    telemetry = get_telemetry(request)
+    if telemetry is not None:
+        telemetry.record_analysis_request(
+            request_id=getattr(request.state, "request_id", ""),
+            endpoint=endpoint,
+            match_type=match_type,
+            filename=file.filename or "unknown",
+            size_bytes=size_bytes,
+        )
     log_event(
         logger,
         "analysis.request",
@@ -107,11 +135,18 @@ def _log_analysis_request(request: Request, endpoint: str, file: UploadFile, mat
         match_type=match_type,
         filename=file.filename or "unknown",
         content_type=file.content_type or "unknown",
-        size_bytes=_uploaded_file_size(file),
+        size_bytes=size_bytes,
     )
 
 
 def _log_analysis_response(request: Request, endpoint: str, payload: Dict[str, Any]) -> None:
+    telemetry = get_telemetry(request)
+    if telemetry is not None:
+        telemetry.record_analysis_response(
+            request_id=getattr(request.state, "request_id", ""),
+            endpoint=endpoint,
+            payload=payload,
+        )
     if endpoint == "analyze_rally":
         diagnostics = payload.get("diagnostics", {}) or {}
         log_event(
@@ -140,9 +175,51 @@ def _log_analysis_response(request: Request, endpoint: str, payload: Dict[str, A
     )
 
 
+def _build_runtime_notes(runtime) -> List[str]:
+    if runtime is None:
+        return [
+            "Runtime has not bootstrapped yet.",
+            "The backend can still expose static demo payloads before analysis components finish loading.",
+        ]
+
+    status_payload = runtime.build_status_payload()
+    notes = [
+        f"Overall runtime status is {status_payload.get('status', 'unknown')}.",
+        f"Analysis ready: {status_payload.get('analysis_ready', False)}.",
+        f"Readiness score: {(status_payload.get('summary', {}) or {}).get('readiness_score', 0.0)}.",
+    ]
+    degraded_components = ((status_payload.get("insights", {}) or {}).get("degraded_components", []))[:4]
+    if degraded_components:
+        notes.append(f"Degraded components detected: {', '.join(degraded_components)}.")
+    else:
+        notes.append("No degraded runtime components are currently reported.")
+    return notes
+
+
+def _build_api_catalog() -> Dict[str, Any]:
+    return {
+        "core_endpoints": [
+            {"path": "/", "method": "GET", "purpose": "Lightweight root status."},
+            {"path": "/health", "method": "GET", "purpose": "Health payload for deployment probes."},
+            {"path": "/system/status", "method": "GET", "purpose": "Expanded runtime and config view."},
+            {"path": "/analyze_rally", "method": "POST", "purpose": "Analyze one badminton rally clip."},
+            {"path": "/analyze_match", "method": "POST", "purpose": "Analyze a full match clip and segment rallies."},
+            {"path": "/feedback", "method": "POST", "purpose": "Submit reward feedback for tactic evolution."},
+        ],
+        "support_endpoints": [
+            {"path": "/telemetry/summary", "method": "GET", "purpose": "Recent request and analysis telemetry."},
+            {"path": "/telemetry/recent", "method": "GET", "purpose": "Recent events with optional limit controls."},
+            {"path": "/demo/catalog", "method": "GET", "purpose": "Frontend-safe demo endpoint catalog."},
+            {"path": "/demo/rally", "method": "GET", "purpose": "Static rally analysis demo payload."},
+            {"path": "/demo/match", "method": "GET", "purpose": "Static match analysis demo payload."},
+        ],
+    }
+
+
 def create_app(runtime_override=None) -> FastAPI:
     app = FastAPI(title="EvoSmash Backend", version="1.1.0")
     app.state.runtime = runtime_override
+    app.state.telemetry = TelemetryService()
 
     app.add_middleware(
         CORSMiddleware,
@@ -164,6 +241,7 @@ def create_app(runtime_override=None) -> FastAPI:
             "system.ready",
             status=status_payload.get("status", "unknown"),
             analysis_ready=status_payload.get("analysis_ready", False),
+            readiness_score=(status_payload.get("summary", {}) or {}).get("readiness_score", 0.0),
         )
 
     @app.middleware("http")
@@ -171,6 +249,16 @@ def create_app(runtime_override=None) -> FastAPI:
         request_id = request.headers.get("X-Request-ID") or uuid.uuid4().hex[:12]
         request.state.request_id = request_id
         started_at = time.perf_counter()
+        telemetry = get_telemetry(request)
+        client_host = request.client.host if request.client else "unknown"
+
+        if telemetry is not None:
+            telemetry.record_request_started(
+                request_id=request_id,
+                method=request.method,
+                path=request.url.path,
+                client=client_host,
+            )
 
         log_event(
             logger,
@@ -178,13 +266,20 @@ def create_app(runtime_override=None) -> FastAPI:
             request_id=request_id,
             method=request.method,
             path=request.url.path,
-            client=(request.client.host if request.client else "unknown"),
+            client=client_host,
         )
 
         try:
             response = await call_next(request)
         except Exception:
             duration_ms = round((time.perf_counter() - started_at) * 1000, 2)
+            if telemetry is not None:
+                telemetry.record_request_failed(
+                    request_id=request_id,
+                    method=request.method,
+                    path=request.url.path,
+                    duration_ms=duration_ms,
+                )
             log_event(
                 logger,
                 "request.failed",
@@ -197,6 +292,14 @@ def create_app(runtime_override=None) -> FastAPI:
 
         response.headers["X-Request-ID"] = request_id
         duration_ms = round((time.perf_counter() - started_at) * 1000, 2)
+        if telemetry is not None:
+            telemetry.record_request_completed(
+                request_id=request_id,
+                method=request.method,
+                path=request.url.path,
+                status_code=response.status_code,
+                duration_ms=duration_ms,
+            )
         log_event(
             logger,
             "request.completed",
@@ -227,15 +330,49 @@ def create_app(runtime_override=None) -> FastAPI:
         }
         return payload
 
-    @app.get("/system/status")
+    @app.get("/system/status", response_model=SystemStatusPayload)
     async def system_status(request: Request):
         payload = get_runtime_status(get_runtime(request))
         payload["config"] = describe_runtime_config()
         payload["app"] = {
             "title": request.app.title,
             "version": request.app.version,
+            "runtime_notes": _build_runtime_notes(get_runtime(request)),
+            "api_catalog": _build_api_catalog(),
         }
         return payload
+
+    @app.get("/telemetry/summary", response_model=TelemetrySnapshotPayload)
+    async def telemetry_summary(request: Request):
+        telemetry = get_telemetry(request)
+        if telemetry is None:
+            return {"summary": {}, "recent_requests": [], "recent_analysis_events": [], "recent_feedback_events": []}
+        return telemetry.export_snapshot()
+
+    @app.get("/telemetry/recent")
+    async def telemetry_recent(request: Request, request_limit: int = 20, analysis_limit: int = 20, feedback_limit: int = 10):
+        telemetry = get_telemetry(request)
+        if telemetry is None:
+            return {"recent_requests": [], "recent_analysis_events": [], "recent_feedback_events": []}
+        return {
+            "recent_requests": telemetry.recent_requests(limit=request_limit),
+            "recent_analysis_events": telemetry.recent_analysis_events(limit=analysis_limit),
+            "recent_feedback_events": telemetry.recent_feedback_events(limit=feedback_limit),
+        }
+
+    @app.get("/demo/catalog", response_model=DemoCatalogPayload)
+    async def demo_catalog():
+        return build_demo_catalog()
+
+    @app.get("/demo/rally", response_model=RallyAnalysisResponse)
+    async def demo_rally(match_type: str = "singles"):
+        match_type = validate_match_type(match_type)
+        return build_demo_rally_payload(match_type=match_type)
+
+    @app.get("/demo/match", response_model=MatchAnalysisResponse)
+    async def demo_match(match_type: str = "singles"):
+        match_type = validate_match_type(match_type)
+        return build_demo_match_payload(match_type=match_type)
 
     @app.post("/analyze_rally", response_model=RallyAnalysisResponse)
     async def analyze_rally(request: Request, file: UploadFile = File(...), match_type: str = Form("singles")):
@@ -301,6 +438,14 @@ def create_app(runtime_override=None) -> FastAPI:
 
         reward = runtime.physics.calculate_reward(result)
         policy_update = runtime.rag.update_policy(tactic_id, reward, context={"auto_result": result}) or {}
+        telemetry = get_telemetry(request)
+        if telemetry is not None:
+            telemetry.record_feedback(
+                request_id=getattr(request.state, "request_id", ""),
+                tactic_id=tactic_id,
+                result=result,
+                reward=reward,
+            )
         log_event(
             logger,
             "feedback.processed",
