@@ -22,7 +22,7 @@ import {
     Flag,
     Target,
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion as Motion, AnimatePresence } from 'framer-motion';
 import Webcam from 'react-webcam';
 import { api } from '../utils/api';
 import { useGame } from '../context/GameContext';
@@ -364,7 +364,7 @@ const Arena = () => {
         <div className="arena-container">
             <AnimatePresence mode="wait">
                 {status === 'idle' && (
-                    <motion.div
+                    <Motion.div
                         key="idle"
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
@@ -408,7 +408,7 @@ const Arena = () => {
                             </button>
                         </div>
 
-                        <motion.div
+                        <Motion.div
                             className={`upload-trigger ${isRecording ? 'recording' : ''}`}
                             onClick={isCameraMode ? handleCameraCapture : () => { soundManager.playClick(); fileInputRef.current?.click(); }}
                             whileHover={{ scale: 1.05 }}
@@ -425,7 +425,7 @@ const Arena = () => {
                                         ? 'Start Recording'
                                         : 'Upload Clip'}
                             </span>
-                        </motion.div>
+                        </Motion.div>
 
                         <input
                             type="file"
@@ -440,28 +440,28 @@ const Arena = () => {
                             <div className="badge"><Zap size={16} /><span>Speed Tracking</span></div>
                             <div className="badge"><Shield size={16} /><span>Tactical Coaching</span></div>
                         </div>
-                    </motion.div>
+                    </Motion.div>
                 )}
 
                 {status === 'analyzing' && (
-                    <motion.div
+                    <Motion.div
                         key="analyzing"
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         className="arena-analyzing"
                     >
-                        <motion.div
+                        <Motion.div
                             className="scanner"
                             animate={{ y: [-100, 100, -100], opacity: [0.5, 1, 0.5] }}
                             transition={{ repeat: Infinity, duration: 2 }}
-                        ></motion.div>
+                        ></Motion.div>
                         <p>Scanning shuttle path and player motion...</p>
-                    </motion.div>
+                    </Motion.div>
                 )}
 
                 {status === 'complete' && videoUrl && (
-                    <motion.div
+                    <Motion.div
                         key="complete"
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
@@ -531,7 +531,7 @@ const Arena = () => {
                             )}
 
                             {analysisResult?.summary && (
-                                <motion.section
+                                <Motion.section
                                     className="hud-summary-panel"
                                     initial={{ opacity: 0, y: 18 }}
                                     animate={{ opacity: 1, y: 0 }}
@@ -546,11 +546,11 @@ const Arena = () => {
                                         </span>
                                     </div>
                                     <p className="hud-summary-copy">{analysisResult.summary.key_takeaway}</p>
-                                </motion.section>
+                                </Motion.section>
                             )}
 
                             {analysisResult?.diagnostics && (
-                                <motion.section
+                                <Motion.section
                                     className="hud-diagnostics-panel"
                                     initial={{ opacity: 0, y: 18 }}
                                     animate={{ opacity: 1, y: 0 }}
@@ -641,13 +641,13 @@ const Arena = () => {
                                             </div>
                                         )}
                                     </div>
-                                </motion.section>
+                                </Motion.section>
                             )}
 
                             {(hasSequencePanel || hasDuelPanel) && (
                                 <section className="hud-intelligence-grid">
                                     {hasSequencePanel && (
-                                        <motion.article
+                                        <Motion.article
                                             className="hud-intel-panel sequence-panel"
                                             initial={{ opacity: 0, y: 18 }}
                                             animate={{ opacity: 1, y: 0 }}
@@ -729,11 +729,11 @@ const Arena = () => {
                                                     ))}
                                                 </ul>
                                             )}
-                                        </motion.article>
+                                        </Motion.article>
                                     )}
 
                                     {hasDuelPanel && (
-                                        <motion.article
+                                        <Motion.article
                                             className="hud-intel-panel duel-panel"
                                             initial={{ opacity: 0, y: 18 }}
                                             animate={{ opacity: 1, y: 0 }}
@@ -788,7 +788,7 @@ const Arena = () => {
                                                     <span>{duelProjection.pressure_gate}</span>
                                                 </div>
                                             )}
-                                        </motion.article>
+                                        </Motion.article>
                                     )}
                                 </section>
                             )}
@@ -796,7 +796,7 @@ const Arena = () => {
                             {analysisResult?.tactics?.length > 0 && (
                                 <div className="hud-tactics-panel">
                                     {analysisResult.tactics.map((tactic, index) => (
-                                        <motion.article
+                                        <Motion.article
                                             key={`${tactic.name}-${index}`}
                                             className={`tactic-intel-card ${tactic.confidence_label || 'medium'}`}
                                             initial={{ opacity: 0, y: 16 }}
@@ -868,13 +868,13 @@ const Arena = () => {
                                                     <p>{tactic.risk_note}</p>
                                                 </div>
                                             )}
-                                        </motion.article>
+                                        </Motion.article>
                                     ))}
                                 </div>
                             )}
 
                             {hasReplayPanel && (
-                                <motion.section
+                                <Motion.section
                                     className="hud-replay-panel"
                                     initial={{ opacity: 0, y: 18 }}
                                     animate={{ opacity: 1, y: 0 }}
@@ -939,7 +939,7 @@ const Arena = () => {
                                                         <div key={`${cycle.from}-${cycle.to}-${index}`} className="replay-list-item">
                                                             <span>{index + 1}</span>
                                                             <div>
-                                                                <strong>{cycle.from} -> {cycle.to}</strong>
+                                                                <strong>{`${cycle.from} -> ${cycle.to}`}</strong>
                                                                 <p>{cycle.summary}</p>
                                                             </div>
                                                         </div>
@@ -976,7 +976,7 @@ const Arena = () => {
                                             <p>{replayStory.closing_state.summary}</p>
                                         </div>
                                     )}
-                                </motion.section>
+                                </Motion.section>
                             )}
 
                             {analysisResult?.advice && (
@@ -993,7 +993,7 @@ const Arena = () => {
                                         </div>
                                     )}
 
-                                    <motion.div
+                                    <Motion.div
                                         className="hud-coach-bubble"
                                         initial={{ y: 50, opacity: 0 }}
                                         animate={{ y: 0, opacity: 1 }}
@@ -1003,7 +1003,7 @@ const Arena = () => {
                                             <p>{analysisResult.advice.text}</p>
                                             <small>{report?.coach_takeaway || analysisResult.physics?.description}</small>
                                         </div>
-                                    </motion.div>
+                                    </Motion.div>
 
                                     <div className="hud-actions">
                                         <button className="close-btn" onClick={handleReset}>Back to Capture</button>
@@ -1017,7 +1017,7 @@ const Arena = () => {
                                 </div>
                             )}
                         </div>
-                    </motion.div>
+                    </Motion.div>
                 )}
             </AnimatePresence>
         </div>
@@ -1025,3 +1025,4 @@ const Arena = () => {
 };
 
 export default Arena;
+
